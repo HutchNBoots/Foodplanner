@@ -23,7 +23,14 @@ export function upcomingMonday(from: Date = new Date()): string {
   return date.toISOString().slice(0, 10);
 }
 
-const DAY_NAMES = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
+const DAY_NAMES = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"] as const;
+
+/** `Date.getDay()` is provably 0-6, but its return type is plain `number` -
+ * this cast is what lets tuple indexing stay non-optional under
+ * `noUncheckedIndexedAccess` instead of forcing `| undefined` everywhere. */
+function dayName(date: Date): string {
+  return DAY_NAMES[date.getDay() as 0 | 1 | 2 | 3 | 4 | 5 | 6];
+}
 
 /** Expands an intake's daysMode + weekStartDate into the concrete list of
  * (date, dayOfWeek) pairs the generation prompt should plan for. */
@@ -34,6 +41,6 @@ export function daysForIntake(intake: Pick<WeekIntakeInput, "weekStartDate" | "d
   return Array.from({ length: count }, (_, i) => {
     const date = new Date(start);
     date.setDate(date.getDate() + i);
-    return { date: date.toISOString().slice(0, 10), dayOfWeek: DAY_NAMES[date.getDay()] };
+    return { date: date.toISOString().slice(0, 10), dayOfWeek: dayName(date) };
   });
 }

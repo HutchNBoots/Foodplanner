@@ -12,8 +12,10 @@
 .env
 .env*.local
 
-# local PGlite data directory
+# local PGlite data directories
 /local-pgdata
+/local-pgdata-e2e
+/local-pgdata-manual
 
 # testing
 /coverage

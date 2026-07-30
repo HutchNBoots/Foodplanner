@@ -18,10 +18,13 @@ export type AggregatedShoppingItem = {
   usedIn: UsedInRef[];
 };
 
-/** Normalises a name/unit pair to a de-dupe key: lowercased, trimmed, unit
- * normalised for a handful of common equivalents so "400g" and "0.4kg" merge. */
-function normaliseKey(name: string, unit: string | null): string {
-  return `${name.trim().toLowerCase()}|${normaliseUnit(unit)}`;
+/** De-dupe key is the product name alone (lowercased/trimmed) - ingredients
+ * are grouped by name regardless of unit, since the same product can show up
+ * with different units across meals (e.g. "0.4kg" vs "400g" chicken, or a
+ * quantified vs "to taste" instance of the same herb). Whether two units are
+ * actually summable is decided separately, below. */
+function normaliseKey(name: string): string {
+  return name.trim().toLowerCase();
 }
 
 const UNIT_ALIASES: Record<string, string> = {
@@ -58,10 +61,11 @@ function formatQuantity(quantity: number): string {
 }
 
 /** Deterministically aggregates ingredients across a week's meals into a
- * shopping list: dedupes by name+unit, sums quantities where units are
- * summable, and keeps a used-in cross-reference per item. See DECISIONS.md
- * for why this is server-side arithmetic rather than something we ask
- * Claude to compute. */
+ * shopping list: dedupes by product name, sums quantities where units are
+ * compatible/summable (falling back to listing incompatible quantities
+ * side-by-side rather than dropping them), and keeps a used-in
+ * cross-reference per item. See DECISIONS.md for why this is server-side
+ * arithmetic rather than something we ask Claude to compute. */
 export function aggregateShoppingList(mealsList: MealForAggregation[]): AggregatedShoppingItem[] {
   const byKey = new Map<
     string,
@@ -71,7 +75,7 @@ export function aggregateShoppingList(mealsList: MealForAggregation[]): Aggregat
   for (const meal of mealsList) {
     for (const ingredient of meal.ingredients) {
       const unit = normaliseUnit(ingredient.unit);
-      const key = normaliseKey(ingredient.name, unit);
+      const key = normaliseKey(ingredient.name);
       const usedInRef: UsedInRef = {
         mealId: meal.id,
         title: meal.title,

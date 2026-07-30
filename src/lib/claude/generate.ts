@@ -2,6 +2,7 @@ import type Anthropic from "@anthropic-ai/sdk";
 import { CLAUDE_MODEL, getAnthropicClient } from "./client";
 import { weekPlanSchema, weekPlanToolInputSchema, type WeekPlan } from "./schema";
 import { buildSystemPrompt, buildUserPrompt } from "./systemPrompt";
+import { buildMockWeekPlan } from "./mock";
 import type { WeekIntake, households } from "@/lib/db/schema";
 
 type Household = typeof households.$inferSelect;
@@ -17,6 +18,12 @@ export async function generateWeekPlan(params: {
   recentTitles: string[];
   recentFeedback: { rating: string; note: string | null; title: string }[];
 }): Promise<WeekPlan> {
+  // Escape hatch for the e2e smoke test (and anyone poking at the app
+  // without an Anthropic key yet) - see DECISIONS.md.
+  if (process.env.MOCK_GENERATION === "1") {
+    return buildMockWeekPlan({ weekStartDate: params.weekStartDate, daysMode: params.intake.daysMode });
+  }
+
   const client = getAnthropicClient();
   const system = buildSystemPrompt(params.household);
   const userMessage = buildUserPrompt(params);

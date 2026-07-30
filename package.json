@@ -14,6 +14,7 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "test:e2e": "playwright test",
+    "test:e2e:server": "PGLITE_DATA_DIR=./local-pgdata-e2e tsx src/lib/db/migrate.ts && next build && PGLITE_DATA_DIR=./local-pgdata-e2e APP_PASSWORD=e2e-test-password AUTH_SECRET=e2e-test-secret MOCK_GENERATION=1 next start -p 3100",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "tsx src/lib/db/migrate.ts",
     "db:studio": "drizzle-kit studio"
