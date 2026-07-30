@@ -12,11 +12,8 @@
 .env
 .env*.local
 
-# local sqlite db
-*.db
-*.db-journal
-*.db-shm
-*.db-wal
+# local PGlite data directory
+/local-pgdata
 
 # testing
 /coverage

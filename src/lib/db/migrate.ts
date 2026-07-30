@@ -1,17 +1,30 @@
-import { createClient } from "@libsql/client";
-import { drizzle } from "drizzle-orm/libsql";
-import { migrate } from "drizzle-orm/libsql/migrator";
+import { PGlite } from "@electric-sql/pglite";
+import { Pool } from "pg";
+import { drizzle as drizzleNodePg } from "drizzle-orm/node-postgres";
+import { drizzle as drizzlePglite } from "drizzle-orm/pglite";
+import { migrate as migrateNodePg } from "drizzle-orm/node-postgres/migrator";
+import { migrate as migratePglite } from "drizzle-orm/pglite/migrator";
 
 async function main() {
-  const url = process.env.DATABASE_URL ?? "file:./local.db";
-  const authToken = process.env.DATABASE_AUTH_TOKEN;
-  const client = createClient({ url, authToken });
-  const db = drizzle(client);
+  const databaseUrl = process.env.DATABASE_URL;
+  const migrationsFolder = "./src/db/migrations";
 
-  console.log(`Running migrations against ${url}...`);
-  await migrate(db, { migrationsFolder: "./src/db/migrations" });
+  if (databaseUrl) {
+    console.log("Running migrations against Railway/Postgres DATABASE_URL...");
+    const pool = new Pool({ connectionString: databaseUrl });
+    const db = drizzleNodePg(pool);
+    await migrateNodePg(db, { migrationsFolder });
+    await pool.end();
+  } else {
+    const dataDir = process.env.PGLITE_DATA_DIR ?? "./local-pgdata";
+    console.log(`Running migrations against local PGlite (${dataDir})...`);
+    const client = new PGlite(dataDir);
+    const db = drizzlePglite(client);
+    await migratePglite(db, { migrationsFolder });
+    await client.close();
+  }
+
   console.log("Migrations complete.");
-  client.close();
 }
 
 main().catch((err) => {

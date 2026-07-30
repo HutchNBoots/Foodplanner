@@ -1,6 +1,8 @@
 import Link from "next/link";
 import { getOrCreateHousehold, listWeeks } from "@/lib/db/queries";
 
+export const dynamic = "force-dynamic";
+
 const STATUS_LABEL: Record<string, string> = {
   ready: "Ready",
   generating: "Generating...",

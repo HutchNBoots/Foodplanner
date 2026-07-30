@@ -5,6 +5,8 @@ import { GeneratingStatus } from "@/components/GeneratingStatus";
 import { WeekTabs } from "@/components/WeekTabs";
 import { MealCard } from "@/components/MealCard";
 
+export const dynamic = "force-dynamic";
+
 export default async function WeekPlanPage({ params }: { params: Promise<{ weekId: string }> }) {
   const { weekId } = await params;
   const detail = await getWeekDetail(weekId);

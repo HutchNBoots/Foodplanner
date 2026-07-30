@@ -1,6 +1,8 @@
 import { getOrCreateHousehold } from "@/lib/db/queries";
 import { SettingsForm } from "@/components/SettingsForm";
 
+export const dynamic = "force-dynamic";
+
 export default async function SettingsPage() {
   const household = await getOrCreateHousehold();
 

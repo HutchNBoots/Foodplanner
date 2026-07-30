@@ -1,12 +1,14 @@
-import { createClient } from "@libsql/client";
-import { drizzle } from "drizzle-orm/libsql";
+import { PGlite } from "@electric-sql/pglite";
+import { Pool } from "pg";
+import { drizzle as drizzleNodePg } from "drizzle-orm/node-postgres";
+import { drizzle as drizzlePglite } from "drizzle-orm/pglite";
 import * as schema from "./schema";
 
-// Same client works against a local file (dev/tests) or a remote Turso
-// database (production) - no code-path divergence, see DECISIONS.md.
-const url = process.env.DATABASE_URL ?? "file:./local.db";
-const authToken = process.env.DATABASE_AUTH_TOKEN;
+// Production: Railway Postgres over `pg` (see DECISIONS.md for the public-vs
+// -private Railway URL note). Local dev/tests: an embedded PGlite instance -
+// zero network, zero external service, same schema/dialect either way.
+const databaseUrl = process.env.DATABASE_URL;
 
-const client = createClient({ url, authToken });
-
-export const db = drizzle(client, { schema });
+export const db = databaseUrl
+  ? drizzleNodePg(new Pool({ connectionString: databaseUrl, max: 5 }), { schema })
+  : drizzlePglite(new PGlite(process.env.PGLITE_DATA_DIR ?? "./local-pgdata"), { schema });

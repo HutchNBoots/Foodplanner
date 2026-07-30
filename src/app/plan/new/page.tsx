@@ -1,6 +1,8 @@
 import { getOrCreateHousehold, getRecentMealTitles } from "@/lib/db/queries";
 import { upcomingMonday } from "@/lib/intake";
 import { deemphasisedStyles, DISH_STYLES } from "@/lib/season";
+
+export const dynamic = "force-dynamic";
 import { IntakeForm } from "@/components/IntakeForm";
 
 export default async function NewWeekPage() {

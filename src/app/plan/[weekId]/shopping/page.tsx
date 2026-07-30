@@ -3,6 +3,8 @@ import { getWeekDetail } from "@/lib/db/queries";
 import { WeekTabs } from "@/components/WeekTabs";
 import { ShoppingList } from "@/components/ShoppingList";
 
+export const dynamic = "force-dynamic";
+
 export default async function ShoppingListPage({ params }: { params: Promise<{ weekId: string }> }) {
   const { weekId } = await params;
   const detail = await getWeekDetail(weekId);

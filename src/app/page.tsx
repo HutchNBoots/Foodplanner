@@ -1,6 +1,10 @@
 import Link from "next/link";
 import { getLatestWeek, getOrCreateHousehold } from "@/lib/db/queries";
 
+// Always reflects the latest household/week state - must not be statically
+// prerendered at build time (see DECISIONS.md).
+export const dynamic = "force-dynamic";
+
 export default async function HomePage() {
   const household = await getOrCreateHousehold();
   const latestWeek = await getLatestWeek(household.id);
