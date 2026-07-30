@@ -1,16 +1,18 @@
 import { PGlite } from "@electric-sql/pglite";
-import { Pool } from "pg";
-import { drizzle as drizzleNodePg } from "drizzle-orm/node-postgres";
+import { neon } from "@neondatabase/serverless";
+import { drizzle as drizzleNeonHttp } from "drizzle-orm/neon-http";
 import { drizzle as drizzlePglite } from "drizzle-orm/pglite";
 import * as schema from "./schema";
 
-// Production: Railway Postgres over `pg` (see DECISIONS.md for the public-vs
-// -private Railway URL note). Local dev/tests: an embedded PGlite instance -
+// Production: Vercel Postgres (Neon-backed) over its HTTP driver - no TCP
+// connection pool to manage from a stateless serverless function, queries
+// are just `fetch()` calls. Local dev/tests: an embedded PGlite instance -
 // zero network, zero external service, same schema/dialect either way.
+// See DECISIONS.md.
 function buildDb() {
   const databaseUrl = process.env.DATABASE_URL;
   return databaseUrl
-    ? drizzleNodePg(new Pool({ connectionString: databaseUrl, max: 5 }), { schema })
+    ? drizzleNeonHttp(neon(databaseUrl), { schema })
     : drizzlePglite(new PGlite(process.env.PGLITE_DATA_DIR ?? "./local-pgdata"), { schema });
 }
 

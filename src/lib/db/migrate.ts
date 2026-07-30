@@ -1,8 +1,8 @@
 import { PGlite } from "@electric-sql/pglite";
-import { Pool } from "pg";
-import { drizzle as drizzleNodePg } from "drizzle-orm/node-postgres";
+import { neon } from "@neondatabase/serverless";
+import { drizzle as drizzleNeonHttp } from "drizzle-orm/neon-http";
 import { drizzle as drizzlePglite } from "drizzle-orm/pglite";
-import { migrate as migrateNodePg } from "drizzle-orm/node-postgres/migrator";
+import { migrate as migrateNeonHttp } from "drizzle-orm/neon-http/migrator";
 import { migrate as migratePglite } from "drizzle-orm/pglite/migrator";
 
 async function main() {
@@ -10,11 +10,9 @@ async function main() {
   const migrationsFolder = "./src/db/migrations";
 
   if (databaseUrl) {
-    console.log("Running migrations against Railway/Postgres DATABASE_URL...");
-    const pool = new Pool({ connectionString: databaseUrl });
-    const db = drizzleNodePg(pool);
-    await migrateNodePg(db, { migrationsFolder });
-    await pool.end();
+    console.log("Running migrations against Vercel Postgres (Neon) DATABASE_URL...");
+    const db = drizzleNeonHttp(neon(databaseUrl));
+    await migrateNeonHttp(db, { migrationsFolder });
   } else {
     const dataDir = process.env.PGLITE_DATA_DIR ?? "./local-pgdata";
     console.log(`Running migrations against local PGlite (${dataDir})...`);

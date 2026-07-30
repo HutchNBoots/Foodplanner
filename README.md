@@ -6,8 +6,8 @@ See **[`PROJECT.md`](./PROJECT.md)** for the full product spec/vision, and **[`D
 
 ## Stack
 
-- **Next.js** (App Router, TypeScript) + **Tailwind CSS**, deployed on **Vercel**.
-- **Postgres on Railway** in production, via Drizzle ORM (`drizzle-orm/node-postgres`). Local dev/tests run against an embedded **PGlite** instance instead - zero setup, no Docker, no account needed.
+- **Next.js** (App Router, TypeScript) + **Tailwind CSS**, deployed on **Vercel** - the only platform this app needs.
+- **Vercel Postgres** (Neon-backed) in production, via Drizzle ORM (`drizzle-orm/neon-http`, `@neondatabase/serverless`). Local dev/tests run against an embedded **PGlite** instance instead - zero setup, no Docker, no account needed.
 - **Claude API** (`@anthropic-ai/sdk`) for weekly plan generation, called server-side via a forced tool-use call, validated with Zod.
 - **Unsplash API** for recipe photos, with a local SVG-illustration fallback when no key is configured.
 - Single shared-password auth gate (`APP_PASSWORD`) - this is a one-household personal app, not multi-user.
@@ -46,4 +46,4 @@ To actually generate a plan you'll need a real `ANTHROPIC_API_KEY` in `.env` (se
 
 ## Deploying
 
-You do the actual deploy yourself - see **[`DEPLOY.md`](./DEPLOY.md)** for exact, copy-paste steps (Railway Postgres setup, Vercel env vars, first migration).
+You do the actual deploy yourself - see **[`DEPLOY.md`](./DEPLOY.md)** for exact, copy-paste steps (adding Vercel Postgres, env vars, first migration).

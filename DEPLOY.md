@@ -1,51 +1,58 @@
 # Deploy guide
 
-Copy-paste steps to get Foodplanner live on **Vercel** (app) + **Railway** (Postgres database). This is written for you to run yourself - nothing here needs me to have your credentials. See `DECISIONS.md` for why this split (Vercel/Railway) was chosen.
+Copy-paste steps to get Foodplanner live on **Vercel** - app and database both, one platform. See `DECISIONS.md` for why (Vercel Postgres, Neon-backed, resolved the pooling/latency trade-off an earlier two-platform setup had).
 
 ## What you'll need
 
 - A GitHub account with this repo pushed to it (already done).
-- A [Vercel](https://vercel.com) account (free tier is enough).
-- A [Railway](https://railway.app) account (free/starter tier is enough for personal use).
+- A [Vercel](https://vercel.com) account (free/Hobby tier is enough).
 - An [Anthropic API key](https://console.anthropic.com/) - required, this is what generates the meal plans. Billed separately from Claude.ai/Pro, pay-as-you-go.
 - Optionally, an [Unsplash API key](https://unsplash.com/developers) (free tier) for real recipe photos. Without one, recipes just show a local illustrated placeholder instead - the app fully works either way.
 
-## 1. Railway: create the Postgres database
+## 1. Import the project into Vercel
 
-1. Create a new Railway project.
-2. Add a **Postgres** database to it (Railway's "New" → "Database" → "Add PostgreSQL").
-3. Open the Postgres service → **Variables** tab. You'll see a `DATABASE_URL` (and related `PG*` vars). By default this is Railway's **private/internal** URL - it only works from *inside* Railway's own network, and **Vercel's serverless functions are not on that network**.
-4. Find the **public** connection string instead: on the Postgres service, go to **Settings** → **Networking** → enable/copy the **public networking** / TCP proxy connection string. It'll look like `postgresql://postgres:<password>@<something>.proxy.rlwy.net:<port>/railway` (hostname containing `proxy.rlwy.net`, not the short internal one). **This is the URL you'll use everywhere below** - copy it somewhere safe.
-5. Pick a Railway project region close to where Vercel will run (e.g. both in a US or EU region) to keep query latency down - a serverless function opening a fresh Postgres connection on every cold start already has more round-trip overhead than the previous Turso setup, so region locality actually matters here (see `DECISIONS.md`).
+1. In Vercel, **Add New Project** → import this GitHub repo. Framework preset auto-detects as Next.js - leave build/output settings default.
+2. Don't deploy yet - add the database and env vars first (steps below), so the first deploy already has everything it needs.
 
-## 2. Run the first migration against Railway
+## 2. Add Vercel Postgres
 
-From your own machine (or this repo checked out anywhere with Node installed), with the **public** URL from step 1:
+1. In the project, go to **Storage** → **Create Database** → **Postgres** (this provisions a Neon-backed Postgres instance, fully managed by Vercel - no separate account or dashboard).
+2. Connect it to the project when prompted. Vercel automatically adds a `DATABASE_URL` environment variable (plus a few Postgres-specific variants) to the project - **you don't need to copy/paste a connection string yourself**.
+3. Pick the same region as your Vercel deployment (or close to it) when creating the database, to keep query latency low.
 
-```bash
-npm install
-DATABASE_URL="postgresql://...proxy.rlwy.net:PORT/railway" npm run db:migrate
-```
+## 3. Set the remaining environment variables
+
+In **Settings → Environment Variables** (Production, and Preview too if you want preview deploys to fully work), add:
+
+| Variable | Value |
+| --- | --- |
+| `APP_PASSWORD` | Whatever household password you want to log in with |
+| `AUTH_SECRET` | A long random string (e.g. `openssl rand -hex 32`) - signs the login session cookie |
+| `ANTHROPIC_API_KEY` | Your Anthropic API key |
+| `ANTHROPIC_MODEL` | Optional - leave unset to use the code's current default |
+| `UNSPLASH_ACCESS_KEY` | Optional - omit to use local illustration fallbacks instead of real photos |
+
+(`DATABASE_URL` is already set from step 2 - leave it as-is.)
+
+## 4. Run the first migration
+
+The database starts empty - the app's tables need to exist before the first real request. From your own machine (or this repo checked out anywhere with Node installed):
+
+1. Copy the `DATABASE_URL` value from Vercel's **Storage** tab (the Postgres database's `.env.local` tab shows it, or **Settings → Environment Variables**).
+2. Run:
+
+   ```bash
+   npm install
+   DATABASE_URL="postgres://...neon.tech/..." npm run db:migrate
+   ```
 
 You should see `Migrations complete.` This creates the `households`, `weeks`, `meals`, `feedback`, and `shopping_items` tables. Re-run this same command (with the same `DATABASE_URL`) any time the schema changes in the future (i.e. after pulling a change that touches `src/lib/db/schema.ts` and includes a new file under `src/db/migrations/`).
 
-## 3. Vercel: import and configure the project
+## 5. Deploy
 
-1. In Vercel, **Add New Project** → import this GitHub repo. Framework preset should auto-detect as Next.js - leave build/output settings default.
-2. Before the first deploy, go to **Settings → Environment Variables** and add (Production, and Preview if you want preview deploys to work too):
+Trigger the deploy (push to `main`, or click Deploy in the Vercel dashboard). Vercel builds with `next build` and serves it - no other configuration needed (there's no `vercel.json`; defaults are fine for this app).
 
-   | Variable | Value |
-   | --- | --- |
-   | `APP_PASSWORD` | Whatever household password you want to log in with |
-   | `AUTH_SECRET` | A long random string (e.g. `openssl rand -hex 32`) - signs the login session cookie |
-   | `DATABASE_URL` | The **public** Railway Postgres URL from step 1 |
-   | `ANTHROPIC_API_KEY` | Your Anthropic API key |
-   | `ANTHROPIC_MODEL` | Optional - leave unset to use the code's current default |
-   | `UNSPLASH_ACCESS_KEY` | Optional - omit to use local illustration fallbacks instead of real photos |
-
-3. Deploy. Vercel will build with `next build` and serve it - no other configuration needed (there's no `vercel.json`; defaults are fine for this app).
-
-## 4. Verify it worked
+## 6. Verify it worked
 
 1. Open the deployed URL on your phone or laptop, confirm the login screen appears, and log in with `APP_PASSWORD`.
 2. Go to **Settings** and confirm you can see/edit the default household (2 adults, 2 kids, Sunday sit-down lunch) - this row is auto-created on first visit.
@@ -53,7 +60,7 @@ You should see `Migrations complete.` This creates the `households`, `weeks`, `m
 4. Confirm recipes show photos (real Unsplash ones if you set that key, illustrated placeholders otherwise), and that the **Shopping list** tab shows an aisle-grouped, copyable list.
 5. Leave feedback on a meal (e.g. "Loved it") and confirm it saves - this is what future weeks' generations read back.
 
-If generation fails, the error message shown in the UI is the same one logged server-side (Vercel's function logs) - most likely causes are a missing/invalid `ANTHROPIC_API_KEY` or a `DATABASE_URL` that's Railway's private (not public) URL.
+If generation fails, the error message shown in the UI is the same one logged server-side (Vercel's function logs) - most likely cause is a missing/invalid `ANTHROPIC_API_KEY`. If the app loads but every page errors, double check the migration in step 4 actually ran against the same `DATABASE_URL` Vercel is using.
 
 ## Rotating the household password
 
