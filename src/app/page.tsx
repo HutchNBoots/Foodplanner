@@ -1,0 +1,35 @@
+import Link from "next/link";
+import { getLatestWeek, getOrCreateHousehold } from "@/lib/db/queries";
+
+export default async function HomePage() {
+  const household = await getOrCreateHousehold();
+  const latestWeek = await getLatestWeek(household.id);
+
+  return (
+    <div className="flex flex-col items-center gap-6 py-10 text-center">
+      <div className="text-5xl">🥗</div>
+      <div>
+        <h1 className="text-2xl font-semibold">{household.name}</h1>
+        <p className="mt-1 text-neutral-500">Ask → generate → optimise → order.</p>
+      </div>
+
+      {latestWeek && (
+        <Link href={`/plan/${latestWeek.id}`} className="card w-full max-w-sm p-4 text-left">
+          <p className="text-sm text-neutral-500">Most recent</p>
+          <p className="font-medium">
+            Week of {latestWeek.weekStartDate} ·{" "}
+            {latestWeek.status === "ready"
+              ? "Ready"
+              : latestWeek.status === "generating"
+                ? "Generating..."
+                : "Failed"}
+          </p>
+        </Link>
+      )}
+
+      <Link href="/plan/new" className="btn-primary">
+        Plan a new week
+      </Link>
+    </div>
+  );
+}

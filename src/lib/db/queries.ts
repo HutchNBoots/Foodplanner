@@ -13,14 +13,23 @@ import {
   type WeekIntake,
 } from "./schema";
 
+/** `noUncheckedIndexedAccess` can't know that `INSERT/UPDATE ... RETURNING`
+ * for a single row always yields exactly one row - this documents that
+ * invariant at the one place it's asserted instead of `!` scattered around. */
+function firstOrThrow<T>(rows: T[]): T {
+  const row = rows[0];
+  if (!row) throw new Error("Expected at least one row back from the database.");
+  return row;
+}
+
 /** v1 is single-household; this fetches that row, creating sensible defaults
  * (§3) on first run so the app works before anyone visits /settings. */
 export async function getOrCreateHousehold() {
   const existing = await db.select().from(households).limit(1);
   if (existing[0]) return existing[0];
 
-  const [created] = await db.insert(households).values({}).returning();
-  return created;
+  const created = await db.insert(households).values({}).returning();
+  return firstOrThrow(created);
 }
 
 export async function updateHousehold(
@@ -36,12 +45,12 @@ export async function updateHousehold(
     budgetDefault: string | null;
   }>,
 ) {
-  const [updated] = await db
+  const updated = await db
     .update(households)
     .set({ ...patch, updatedAt: new Date().toISOString() })
     .where(eq(households.id, id))
     .returning();
-  return updated;
+  return firstOrThrow(updated);
 }
 
 /** Recent dinner/lunch titles across the last `weeksBack` weeks, used both to
@@ -94,11 +103,11 @@ export async function getRecentFeedback(householdId: string, limit = 25) {
 }
 
 export async function createWeek(householdId: string, weekStartDate: string, intake: WeekIntake) {
-  const [week] = await db
+  const inserted = await db
     .insert(weeks)
     .values({ householdId, weekStartDate, intakeJson: intake, status: "generating" })
     .returning();
-  return week;
+  return firstOrThrow(inserted);
 }
 
 export async function setWeekError(weekId: string, message: string) {
@@ -181,8 +190,8 @@ export async function getLatestWeek(householdId: string) {
 }
 
 export async function addFeedback(mealId: string, weekId: string, rating: FeedbackRating, note?: string) {
-  const [row] = await db.insert(feedback).values({ mealId, weekId, rating, note }).returning();
-  return row;
+  const inserted = await db.insert(feedback).values({ mealId, weekId, rating, note }).returning();
+  return firstOrThrow(inserted);
 }
 
 export async function getMeal(mealId: string) {
