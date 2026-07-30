@@ -1,0 +1,25 @@
+import { getOrCreateHousehold, getRecentMealTitles } from "@/lib/db/queries";
+import { upcomingMonday } from "@/lib/intake";
+import { deemphasisedStyles, DISH_STYLES } from "@/lib/season";
+import { IntakeForm } from "@/components/IntakeForm";
+
+export default async function NewWeekPage() {
+  const household = await getOrCreateHousehold();
+  const recentTitles = await getRecentMealTitles(household.id, 3);
+
+  return (
+    <div className="mx-auto max-w-xl">
+      <h1 className="text-2xl font-semibold">Plan the week</h1>
+      <p className="mt-1 text-sm text-neutral-500">
+        A few quick questions, then Claude generates the full week.
+      </p>
+      <IntakeForm
+        defaultWeekStartDate={upcomingMonday()}
+        defaultSundayMode={household.sundayDefaultMode as "sit_down" | "bbq" | "skip"}
+        recentTitles={recentTitles.slice(0, 8)}
+        dishStyles={[...DISH_STYLES]}
+        deemphasised={deemphasisedStyles()}
+      />
+    </div>
+  );
+}
