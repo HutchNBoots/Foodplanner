@@ -64,7 +64,7 @@ describe("aggregateShoppingList", () => {
     ]);
 
     expect(items).toHaveLength(1);
-    expect(items[0]?.displayQuantity).toContain("2tbsp");
+    expect(items[0]?.displayQuantity).toContain("2 tbsp");
     expect(items[0]?.displayQuantity).toContain("as needed");
   });
 
