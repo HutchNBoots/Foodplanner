@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { buildSystemPrompt } from "@/lib/claude/systemPrompt";
 import type { households } from "@/lib/db/schema";
+import { PROTEIN_TYPES } from "@/lib/intake";
 
 function baseHousehold(): typeof households.$inferSelect {
   return {
@@ -13,6 +14,7 @@ function baseHousehold(): typeof households.$inferSelect {
     sunLunchDefaultMode: "sit_down",
     familyAdults: 2,
     familyKids: 2,
+    favoriteProteins: [...PROTEIN_TYPES],
     store: "Sainsbury's",
     budgetDefault: null,
     createdAt: "2026-01-01T00:00:00.000Z",

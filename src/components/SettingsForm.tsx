@@ -17,7 +17,13 @@ const FAMILY_OCCASIONS = [
 
 const MODE_LABEL: Record<string, string> = { sit_down: "Sit-down", bbq: "BBQ", skip: "Skip" };
 
-export function SettingsForm({ household }: { household: Household }) {
+export function SettingsForm({
+  household,
+  proteinTypes,
+}: {
+  household: Household;
+  proteinTypes: string[];
+}) {
   const router = useRouter();
   const [form, setForm] = useState({
     name: household.name,
@@ -30,6 +36,7 @@ export function SettingsForm({ household }: { household: Household }) {
     familyKids: household.familyKids,
     store: household.store,
     budgetDefault: household.budgetDefault ?? "",
+    favoriteProteins: household.favoriteProteins,
   });
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
@@ -37,6 +44,15 @@ export function SettingsForm({ household }: { household: Household }) {
   function set<K extends keyof typeof form>(key: K, value: (typeof form)[K]) {
     setForm((f) => ({ ...f, [key]: value }));
     setSaved(false);
+  }
+
+  function toggleProtein(protein: string) {
+    set(
+      "favoriteProteins",
+      form.favoriteProteins.includes(protein)
+        ? form.favoriteProteins.filter((p) => p !== protein)
+        : [...form.favoriteProteins, protein],
+    );
   }
 
   async function onSubmit(e: React.FormEvent) {
@@ -175,6 +191,30 @@ export function SettingsForm({ household }: { household: Household }) {
               onChange={(e) => set("familyKids", Number(e.target.value))}
             />
           </div>
+        </div>
+      </section>
+
+      <section className="card space-y-4 p-4">
+        <h2 className="font-semibold">Favorite proteins</h2>
+        <p className="text-xs text-neutral-400">
+          Selected by default each week on the intake form&apos;s protein picker - still fully
+          overridable per week.
+        </p>
+        <div className="flex flex-wrap gap-2">
+          {proteinTypes.map((protein) => (
+            <button
+              key={protein}
+              type="button"
+              onClick={() => toggleProtein(protein)}
+              className={`rounded-full border px-3.5 py-1.5 text-sm ${
+                form.favoriteProteins.includes(protein)
+                  ? "border-brand-600 bg-brand-600 text-white"
+                  : "border-neutral-300 text-neutral-700"
+              }`}
+            >
+              {protein}
+            </button>
+          ))}
         </div>
       </section>
 

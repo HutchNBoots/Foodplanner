@@ -45,6 +45,7 @@ export async function updateHousehold(
     familyKids: number;
     store: string;
     budgetDefault: string | null;
+    favoriteProteins: string[];
   }>,
 ) {
   const updated = await db

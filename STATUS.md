@@ -5,6 +5,32 @@ Start here for "where are we" - the other docs are: `PROJECT.md` (original spec)
 (method-step eval rubric/results), `README.md` (local dev), `DEPLOY.md` (deploy steps). This file is
 just the up-to-date summary of where things actually stand.
 
+## MVP 2.1 - shipped, in PR to `main`
+
+Small operator-requested backlog grab-bag, built as one milestone on `build/mvp2.1` from latest
+`main` (after the post-MVP2 empty-ingredients hotfix below). `tsc`, `eslint`, and `vitest` (90
+tests) all green, plus a manual mocked-generation browser pass through Settings and the intake form
+confirming persistence and generation behaviour end to end. See `DECISIONS.md`'s "MVP 2.1" entry for
+full design reasoning, including why items 2 and 4 below were built as one unified feature.
+
+- **Favorite proteins** - a new household-level default (`households.favorite_proteins`, migration
+  `0003`), editable in Settings via the same pill-picker style as the intake form's protein picker.
+  The intake form's protein selection now pre-fills from this instead of always starting with every
+  protein selected.
+- **Meals-needed toggles** - a new "Meals needed this week" intake section with independent
+  Breakfast/Lunch/Dinner toggles for Parents and for Kids. Adults can now optionally get a
+  breakfast (previously never modelled at all); the kids track can be skipped entirely for the week
+  by toggling all three off. Intake-only, not a Settings default - see `DECISIONS.md` for why that's
+  the right line (favorite proteins were explicitly asked for as a standing preference; these
+  toggles were asked for as "a box on the generate form").
+- **Stronger free-text override** - the system prompt now explicitly frames the household context
+  as standing defaults, not hard constraints, with a closing rule that conflicting free-text notes
+  win outright (e.g. "camping this week, no oven" now suspends the batch-cooking default entirely
+  rather than just getting acknowledged alongside it).
+- Resolves the backlog item about an adult breakfast appearing unexpectedly (see
+  `REQUIREMENTS.md`'s backlog section) - it's no longer unexpected, it's now an intentional per-week
+  choice.
+
 ## Post-MVP2 hotfix: empty ingredients array surviving a retry
 
 A real generation call hit a hard failure - two meals came back with empty `ingredients` arrays
@@ -109,24 +135,26 @@ that file for the rubric and full context.
 - **Live app**: Vercel project, deployed from `main`. URL as of last check: `foodplanner-pi.vercel.app` (confirm current one in the Vercel dashboard - custom/preview domains may have changed).
 - **Database**: Vercel Postgres (Neon-backed), linked to the project. Migrations run automatically as part of every Vercel build (`vercel-build` script in `package.json`) - no manual migration step needed, ever, including for future schema changes.
 - **Confirmed by the operator, live, with a real Anthropic key**: login, Settings (household defaults), the full intake → generate → recipes → shopping list → feedback flow.
-- Currently showing `v8` on the login/home pages (see "Version number" below) once this hotfix redeploys - if you see an older number still, it hasn't picked up this push yet.
+- Currently showing `v9` on the login/home pages (see "Version number" below) once MVP 2.1 redeploys - if you see an older number still, it hasn't picked up this push yet.
 - **Generation is noticeably slower since MVP 1.2, expectedly** - one call now produces the adult
   track plus a full kids track plus family occasions (roughly 2-3x the meals of a pre-MVP1.2 week),
   and Claude generates output tokens at a roughly fixed rate, so more content is proportionally more
   time. Not a bug/regression to chase; if it becomes a real problem, the options are trimming what's
   generated per call or splitting into separate adult/kids calls (rejected for MVP 1.2, see
   `DECISIONS.md`, but revisitable).
-- **Kids meals and some prompt-following (e.g. an adult breakfast appearing when it shouldn't) could
-  use a prompt-tuning pass** - flagged by the operator post-MVP1.2, explicitly deferred to a future
-  milestone rather than folded into MVP 2's small scope.
+- **Kids meals could use a prompt-tuning pass** (more instructive/varied) - flagged by the operator
+  post-MVP1.2, still deferred. (The other half of that original item - an adult breakfast appearing
+  when it shouldn't - is resolved as of MVP 2.1: adult breakfast is now an intentional per-week
+  toggle, not an always-out-of-scope meal, so it's no longer a bug.)
 
 ## What's in the app (v1 scope, per PROJECT.md)
 
-Weekly intake form (days needed, Sunday mode, dish styles, **protein select/unselect - see below**, avoid-repeats, budget, effort, notes) → Claude API generates a structured 7-day plan (forced tool-use, Zod-validated, retries once) → recipe view (photo, ingredients, method, macros, batch-cook/leftover badges) → aisle-grouped shopping list (copy as text) → per-meal feedback that steers future generations → editable household settings.
+Weekly intake form (days needed, Sunday mode, dish styles, **protein select/unselect - see below**, **meals-needed toggles per track - see below**, avoid-repeats, budget, effort, notes) → Claude API generates a structured 7-day plan (forced tool-use, Zod-validated, retries up to 3x) → recipe view (photo, ingredients, method, macros, batch-cook/leftover badges) → aisle-grouped shopping list (copy as text) → per-meal feedback that steers future generations → editable household settings (now including **favorite proteins - see below**).
 
 ## Recently added (beyond original spec, operator-requested)
 
-- **Protein select/unselect** in the intake form - all protein types on by default, deselect one (e.g. Beef) to exclude it entirely that week.
+- **Protein select/unselect** in the intake form - defaults to the household's favorite proteins (MVP 2.1, editable in Settings), deselect/reselect any protein to override just for that week.
+- **Meals-needed toggles (MVP 2.1)** - per-week Breakfast/Lunch/Dinner toggles for the Parents and Kids tracks independently; adults can opt into a breakfast, and the kids track can be skipped entirely for the week.
 - **Version number** (`src/lib/version.ts`, `APP_VERSION`) shown on login + home pages. **Manually bumped by one on every deploy-bound change** - if you're continuing work in a new session, remember to increment it in any commit that changes behavior, so the operator can visually confirm a deploy picked up new code.
 
 ## Open items / things the operator was mid-way through when this session ended

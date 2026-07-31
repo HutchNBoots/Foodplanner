@@ -26,6 +26,7 @@
  */
 import { generateWeekPlan } from "../src/lib/claude/generate";
 import type { households } from "../src/lib/db/schema";
+import { PROTEIN_TYPES } from "../src/lib/intake";
 
 type Household = typeof households.$inferSelect;
 
@@ -69,6 +70,7 @@ const fakeHousehold: Household = {
   sunLunchDefaultMode: "sit_down",
   familyAdults: 2,
   familyKids: 2,
+  favoriteProteins: [...PROTEIN_TYPES],
   store: "Sainsbury's",
   budgetDefault: null,
   createdAt: new Date().toISOString(),
@@ -82,6 +84,8 @@ async function main() {
     intake: {
       daysMode: "full_week",
       familyMeals: { satBreakfast: "sit_down", satEvening: "sit_down", sunLunch: "sit_down" },
+      parentMeals: { breakfast: false, lunch: true, dinner: true },
+      kidsMeals: { breakfast: true, lunch: true, dinner: true },
       dishStyles: [],
       proteins: ["Chicken", "Beef", "Pork", "Fish & seafood", "Turkey", "Eggs", "Plant-based"],
       avoidRepeating: [],

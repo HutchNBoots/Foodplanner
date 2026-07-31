@@ -21,6 +21,7 @@ export default async function NewWeekPage() {
         defaultSatEveningMode={household.satEveningDefaultMode as "sit_down" | "bbq" | "skip"}
         defaultSunLunchMode={household.sunLunchDefaultMode as "sit_down" | "bbq" | "skip"}
         defaultBudget={household.budgetDefault ?? ""}
+        defaultProteins={household.favoriteProteins}
         recentTitles={recentTitles.slice(0, 8)}
         dishStyles={[...DISH_STYLES]}
         deemphasised={deemphasisedStyles()}

@@ -15,6 +15,7 @@ const householdSchema = z.object({
   familyKids: z.number().int().min(0).max(10),
   store: z.string().min(1),
   budgetDefault: z.string().optional(),
+  favoriteProteins: z.array(z.string()),
 });
 
 export async function PATCH(request: Request) {

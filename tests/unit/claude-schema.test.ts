@@ -1,9 +1,11 @@
 import { describe, expect, it } from "vitest";
 import { weekPlanSchema, weekPlanToolInputSchema } from "@/lib/claude/schema";
 import { buildMockWeekPlan } from "@/lib/claude/mock";
-import type { FamilyMeals } from "@/lib/db/schema";
+import type { FamilyMeals, MealTimesNeeded } from "@/lib/db/schema";
 
 const allSitDown: FamilyMeals = { satBreakfast: "sit_down", satEvening: "sit_down", sunLunch: "sit_down" };
+const parentMeals: MealTimesNeeded = { breakfast: false, lunch: true, dinner: true };
+const kidsMeals: MealTimesNeeded = { breakfast: true, lunch: true, dinner: true };
 
 const validPlan = {
   summary: "A varied week of high-protein meals.",
@@ -72,7 +74,7 @@ describe("weekPlanSchema", () => {
 describe("buildMockWeekPlan", () => {
   it("produces output that validates against weekPlanSchema for every daysMode", () => {
     for (const daysMode of ["full_week", "weekdays_only", "mon_to_sat"] as const) {
-      const plan = buildMockWeekPlan({ weekStartDate: "2026-08-03", daysMode, familyMeals: allSitDown });
+      const plan = buildMockWeekPlan({ weekStartDate: "2026-08-03", daysMode, familyMeals: allSitDown, parentMeals, kidsMeals });
       const result = weekPlanSchema.safeParse(plan);
       expect(result.success).toBe(true);
     }
@@ -80,13 +82,40 @@ describe("buildMockWeekPlan", () => {
 
   it("produces the correct number of days for each mode", () => {
     expect(
-      buildMockWeekPlan({ weekStartDate: "2026-08-03", daysMode: "full_week", familyMeals: allSitDown }).days,
+      buildMockWeekPlan({ weekStartDate: "2026-08-03", daysMode: "full_week", familyMeals: allSitDown, parentMeals, kidsMeals })
+        .days,
     ).toHaveLength(7);
     expect(
-      buildMockWeekPlan({ weekStartDate: "2026-08-03", daysMode: "weekdays_only", familyMeals: allSitDown }).days,
+      buildMockWeekPlan({ weekStartDate: "2026-08-03", daysMode: "weekdays_only", familyMeals: allSitDown, parentMeals, kidsMeals })
+        .days,
     ).toHaveLength(5);
     expect(
-      buildMockWeekPlan({ weekStartDate: "2026-08-03", daysMode: "mon_to_sat", familyMeals: allSitDown }).days,
+      buildMockWeekPlan({ weekStartDate: "2026-08-03", daysMode: "mon_to_sat", familyMeals: allSitDown, parentMeals, kidsMeals })
+        .days,
     ).toHaveLength(6);
+  });
+
+  it("skips the kids track entirely when all three kids meal-times are toggled off", () => {
+    const plan = buildMockWeekPlan({
+      weekStartDate: "2026-08-03",
+      daysMode: "full_week",
+      familyMeals: allSitDown,
+      parentMeals,
+      kidsMeals: { breakfast: false, lunch: false, dinner: false },
+    });
+    const allMeals = plan.days.flatMap((d) => d.meals);
+    expect(allMeals.some((m) => m.track === "kids")).toBe(false);
+  });
+
+  it("adds an adult breakfast when parentMeals.breakfast is on", () => {
+    const plan = buildMockWeekPlan({
+      weekStartDate: "2026-08-03",
+      daysMode: "full_week",
+      familyMeals: allSitDown,
+      parentMeals: { breakfast: true, lunch: true, dinner: true },
+      kidsMeals,
+    });
+    const allMeals = plan.days.flatMap((d) => d.meals);
+    expect(allMeals.some((m) => m.track === "adult" && m.slot === "breakfast")).toBe(true);
   });
 });

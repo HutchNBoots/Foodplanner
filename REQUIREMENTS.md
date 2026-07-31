@@ -277,7 +277,7 @@ section as the current source of truth) so the two docs don't silently disagree.
 
 ## MVP 2 — Shopping list, ready to hand to Claude in Chrome
 
-**Status: ⬜ Not started.** **Scope corrected from the version of this section below (kept, struck
+**Status: ✅ Shipped, merged into `main`.** **Scope corrected from the version of this section below (kept, struck
 through, for the record) — see `DECISIONS.md`'s "MVP 2 scope correction" entry for the full
 reasoning.** Depends on MVP 1.1's canonical ingredient list — a clean, canonical product name per
 row is exactly what makes the list something Claude in Chrome can search against reliably.
@@ -349,6 +349,59 @@ A human-in-the-loop flow (browser assistant or a Playwright script the user runs
 
 ---
 
+## MVP 2.1 — Favorite proteins, optional meal-times, stronger free-text override
+
+**Status: ✅ Shipped, in PR to `main`.** Small, operator-requested backlog grab-bag, built as one
+milestone on `build/mvp2.1` from latest `main`. Four items, two of which turned out to be one
+underlying feature (see `DECISIONS.md`'s "MVP 2.1" entry for the full design reasoning):
+
+### 1. Favorite proteins (household setting)
+
+- ✅ A new "Favorite proteins" section in Settings — a pill-picker over the same protein list the
+  intake form already uses, saved as a household-level default (`households.favorite_proteins`).
+- ✅ The intake form's protein picker now pre-selects from this household default instead of always
+  starting with every protein selected — still fully overridable per week, same as every other
+  intake field.
+
+### 2 & 4. Optional/skippable meal-times per track (adult + kids)
+
+Originally asked as two separate items ("make kids meals optional" and "add breakfast/lunch/dinner
+as parent options and kids") but designed as one feature — both are instances of "which meal-times
+does each track need this week":
+
+- ✅ A new "Meals needed this week" section on the intake form: a Breakfast/Lunch/Dinner toggle row
+  each for Parents and for Kids.
+- ✅ Adults can now optionally get a breakfast (previously never modelled at all).
+- ✅ The kids track can be skipped entirely for the week by toggling all three off for Kids — not
+  just individual days, the whole track.
+- ✅ Intake-only, not backed by new Settings columns — sensible hardcoded defaults (parents:
+  lunch+dinner, no breakfast; kids: all three) matching pre-MVP2.1 behaviour exactly, same treatment
+  as `daysMode`/`effort` already get. `favoriteProteins` above is different: that was explicitly
+  asked for as a "favorite" (a standing preference), so it got a household column; these meal-time
+  toggles were asked for as "a box on the generate form" — a per-week choice, not a standing setting.
+
+### 3. Stronger free-text override
+
+- ✅ The system prompt's household-context section now explicitly frames itself as standing
+  *defaults*, not hard constraints — a closing rule states that the week's free-text notes win over
+  any conflicting default (e.g. "camping this week, no oven" should suspend the batch-cooking
+  default entirely, not just get acknowledged alongside it).
+
+### Definition of done for MVP 2.1
+
+- Household favorite proteins: Settings section, migration, intake form pre-fill, all wired
+- Meals-needed toggles: intake form section (Parents/Kids × Breakfast/Lunch/Dinner), system prompt
+  and mock generation both respect per-track/per-slot selection including the kids track being fully
+  skippable
+- System prompt explicitly frames free-text notes as overriding standing defaults, with a concrete
+  example
+- `REQUIREMENTS.md` (this section) and `DECISIONS.md` updated
+- `tsc`, `eslint`, and `vitest` all green; a manual mocked-generation browser pass confirms favorite
+  proteins persist and pre-fill, the toggles work per-track, and the generated plan reflects them
+- All of this is in a PR from `build/mvp2.1` into `main`, ready for review and merge
+
+---
+
 ## MVP 3 (Phase 3) — Delta ordering
 
 **Status: ⬜ Not started.** Per `PROJECT.md` §9. Depends on MVP 2 existing first.
@@ -369,11 +422,12 @@ Per `PROJECT.md` §9, listed but explicitly deferred — pick up if/when priorit
 - ⬜ Freezer inventory tracking — knowing what's already batch-frozen from a prior week and
   factoring that into future generation (skip re-cooking/re-buying accordingly), deferred from
   MVP 1.2's narrower "suggest doubling the batch" version
-- ⬜ Generation prompt-tuning pass — flagged from live use of MVP 1.2: an adult breakfast appeared
-  when it shouldn't have (adult breakfasts are meant to be entirely out of scope, family-breakfast
-  occasion aside), and kids meals could be more instructive/varied. Both are prompt-following
-  issues to review and tighten in the system prompt, not data-model bugs - explicitly deferred to a
-  future milestone rather than folded into MVP 2's small, unrelated scope
+- ⬜ Generation prompt-tuning pass — kids meals could be more instructive/varied. A
+  prompt-following issue to review and tighten in the system prompt, not a data-model bug -
+  explicitly deferred to a future milestone. (The other half of this item, an adult breakfast
+  appearing when it shouldn't have, is resolved as of MVP 2.1 - adult breakfast is now an
+  intentional per-week toggle rather than an always-out-of-scope meal, so it appearing is no longer
+  a bug.)
 
 ## Explicitly not planned
 
