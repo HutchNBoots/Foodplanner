@@ -249,6 +249,185 @@ that would be a scope expansion into "per-week household-size override", which i
 requirement's ask (it only asks to *prefill from* settings, not make settings fields *editable a
 second time* per-week) and isn't something the operator flagged as missing in the live-app review.
 
+## MVP 1.2 — Kids meals, family meal cadence & leftover balance
+
+Scoped from `REQUIREMENTS.md`'s MVP 1.2 section, itself scoped from further live-use feedback after
+MVP 1.1 shipped. `PROJECT.md` §3/§4 were already updated (directly on `main`) to state the new
+three-occasion default before this build started - this section is the brainstorm/build log for
+actually implementing it. Branch: `build/mvp1.2` (no runner-assigned branch was specified for this
+milestone, so following `REQUIREMENTS.md`'s own suggested name directly).
+
+### Data model: `track` (adult/kids/family) alongside `slot` (breakfast/lunch/dinner), not more special-cased slots
+
+MVP1's `meals.slot` was `"lunch" | "dinner" | "sunday_special"` - one special-cased value for the
+one family occasion that existed. MVP 1.2 needs three family occasions *plus* a whole new kids
+track (breakfast/lunch/dinner, Mon-Sat) *plus* the existing adult track. Stacking more
+special-cased slot values (`"sat_breakfast_special"`, `"sun_lunch_special"`, ...) would tangle
+"which meal-time is this" with "whose meal is this" into one enum. Instead: **`slot` becomes purely
+the meal-time** (`"breakfast" | "lunch" | "dinner"`), and a new **`track`** column
+(`"adult" | "kids" | "family"`) says whose meal it is. This maps directly onto the required
+Parents/Kids/Family recipe-view tabs (§3 of the requirement) with zero extra mapping logic, and
+generalises cleanly if a fourth track or fifth occasion ever gets added later.
+
+**Old rows** (pre-MVP1.2, `slot: "sunday_special"`, no `track` column): the new `track` column is
+added `NOT NULL DEFAULT 'adult'` at the DB level (Postgres backfills existing rows with that
+default as part of the `ALTER TABLE`, which is a mechanical schema-level default, not a
+per-row semantic rewrite of historical data - different in kind from MVP1.1's explicit
+"don't backfill ingredient names" rule, which was about not re-guessing historical *content*). The
+one place this default is wrong is old `sunday_special` rows, which were actually family-track
+meals - handled by special-casing `slot === "sunday_special"` to render/tab under **Family**
+regardless of its (technically-default) `track` value, in the one small piece of render/filter code
+that needs it. This is computed at render time, not a data mutation, so it satisfies both "old
+weeks must still render correctly" and "don't rewrite frozen historical rows."
+
+**One accepted gap**: a week that failed *before* this migration shipped, sitting in `status:
+"error"`, has an `intakeJson` shaped like the old `sundayMode` intake, not the new `familyMeals`
+shape. Retrying it (MVP 1.1's retry feature) after this deploy will hand the generator
+`intake.familyMeals` as `undefined`. Given this is a personal app with essentially no long-lived
+error backlog, this is accepted as a documented edge case rather than engineered around - the fix,
+if it's ever hit, is "start a new week instead of retrying," not a code change.
+
+### Family-occasion mode options: breakfast never gets "BBQ"
+
+`REQUIREMENTS.md`/`PROJECT.md` phrase the three per-occasion options as "sit-down / BBQ (evening
+only) / skip". Read literally-strict ("BBQ only valid for the evening occasion") this would remove
+BBQ from Sunday lunch, which contradicts the *existing*, unchanged MVP1 behaviour (Sunday lunch has
+always been able to be a BBQ - a Sunday BBQ lunch is a completely normal thing). Read as "BBQ isn't
+a breakfast thing" (obviously true, and the only occasion it'd be nonsensical for), the phrasing is
+just flagging the obvious rather than intending to remove an existing capability. **Decision**:
+`satBreakfast` mode is `"sit_down" | "skip"` only (no BBQ); `satEvening` and `sunLunch` both keep
+the full `"sit_down" | "bbq" | "skip"` set, preserving Sunday's existing behaviour and treating
+Saturday evening the same way. If this reading is wrong, it's a one-line enum change to fix, not an
+architectural one.
+
+### One shared family headcount, not one per occasion
+
+MVP1 had a single "Sunday headcount" (adults/kids) setting, separate from the base household size,
+because a family occasion can have a different attendance than an ordinary weekday. Rather than
+tripling that into three separate headcount settings (one per occasion), MVP 1.2 keeps **one**
+shared `familyAdults`/`familyKids` setting (renamed from `sundayAdults`/`sundayKids`) applied to
+whichever family occasions are actually happening that week. The three occasions are still the same
+family gathering together, just on three possible occasions rather than one - attendance doesn't
+usually vary occasion-to-occasion the way it might vary week-to-week (a guest coming for one
+specific Sunday, say) and the intake's free-text notes field already exists for one-off exceptions
+("Grandma's joining Saturday breakfast this week"). Simpler data model, same escape hatch for the
+actual variability that matters.
+
+### "Skip" semantics differ between breakfast and dinner/lunch occasions
+
+Per the existing (unchanged) Sunday behaviour, `skip` for a family occasion means "no special
+shared meal - treat the slot normally," not "nothing gets cooked": Sunday-skip already meant adults
+still get a normal Sunday dinner/lunch generated. Extending that consistently:
+- **Saturday evening / Sunday lunch, skip** → falls back to normal per-track meals for that
+  slot (adult dinner + kids dinner separately on Saturday; adult-only on Sunday, since Sunday was
+  never in the kids track - see below).
+- **Saturday breakfast, skip** → no breakfast is generated for that slot at all, because unlike
+  dinner/lunch, breakfast was never otherwise tracked by the app for *any* day (weekday breakfasts
+  are explicitly out of scope, per this same requirement's "regular weekday breakfasts stay
+  simple/separate"). There's no "normal adult breakfast" concept to fall back to.
+
+This is encoded as **system-prompt instruction, not code-enforced structure** - see the next entry
+for why.
+
+### Day/slot/track structure is prompt-driven, not code-validated (except the leftover cap)
+
+The existing architecture already leaves "exactly which days/slots appear" entirely to Claude,
+validated only by the overall Zod schema's shape (arrays non-empty, enums valid) - dish styles,
+effort level, batch/leftover placement etc. were never independently re-validated against a rigid
+per-day rubric. MVP 1.2 keeps that pattern: the many day/slot/track rules above (kids Mon-Sat only,
+family occasions replacing specific slots, skip-reversion semantics) are all clearly spelled out in
+the system prompt, the same mechanism already relied on for every other per-week rule. The
+**one** exception, because `REQUIREMENTS.md` explicitly calls for code enforcement, not just a
+prompt ask, is the leftover cap (next entry). Building a full structural validator for the
+day/slot/track rules would be a materially bigger, brittle addition (effectively re-deriving "what
+should this exact week look like" in code) for a rule set that's fundamentally about *quality/taste*
+of the generated plan, not data integrity - a prompt-engineering problem, not a validation one.
+
+### Leftover cap: counted from `batchCook.leftoverFor`, enforced via the existing retry loop
+
+"No more than 2 meal-slots per week should be leftovers from an earlier batch-cook" needs a
+concrete, countable definition. A leftover slot already has an exact representation in the existing
+schema: an entry in some meal's `batchCook.leftoverFor` array *is* a leftover meal-slot (that's
+literally what the field means - "this day/slot eats this batch's leftovers instead of a fresh
+meal"). So the count is simply the sum of `leftoverFor.length` across every meal in the plan,
+combined across adult/kids/family tracks (per the requirement - "adults + kids together, not
+tracked separately"). This slots directly into `generateWeekPlan`'s existing 2-attempt retry loop
+(added for Zod-validation failures in MVP1): after a response parses successfully against the Zod
+schema, it's now also checked against the leftover cap, and a cap violation is fed back to the
+model as a corrective message on the retry, exactly like a schema-validation failure already is.
+Kept at the existing 2-attempt limit rather than adding a third attempt purely for this - if this
+proves insufficient in practice, raising the attempt count is a one-line change, not a redesign.
+
+### Kids-meal macros: same fields, different meaning, not a schema fork
+
+Kids meals still report `macrosPerAdultPortion` (kcal/protein/carbs/fat/fibre) for UI consistency
+(per the requirement: "the macro-per-portion display can stay for consistency"), but for a
+kids-track meal, that number means "per kid portion," not "per adult portion" - there's no adult
+portion on a kids-only meal (`servingsAdults: 0`). Renaming the field (and the DB columns, which are
+already the generic `kcal`/`proteinG`/etc., not adult-specific) would be pure churn for something
+that's really just a description-text/consumer-side framing difference. Fixed by clarifying the
+Zod field's `.describe()` text to state the meaning depends on the meal's `track`, and - more
+importantly - by scoping `WeekNutritionSummary` (MVP 1.1) to **adult + family track meals only**,
+excluding kids: mixing a deficit-framed adult-portion number with a kids' balanced-nutrition number
+in the same "week nutrition" total would silently misrepresent both. Old weeks (all effectively
+adult/family, no kids track existed) are unaffected since their rows default to `track: "adult"`.
+
+### One combined generation call, not a split adult/kids call
+
+`REQUIREMENTS.md` explicitly leaves this open. Splitting into two calls (one for adults, one for
+kids+family) would roughly double the *input* token cost (system prompt + household context +
+history/feedback context repeated twice) for every generation, on top of needing new orchestration
+to merge two independent responses into one persisted week and reconcile shared concerns (canonical
+ingredients, the leftover cap, which is explicitly meant to span both tracks combined - a split
+call would need a second round-trip just to reconcile the cap across two separately-generated
+halves). A single combined call keeps the existing architecture (one `weekPlanSchema` response, one
+retry loop, one persistence path) and only costs more in *output* tokens, which was already the
+larger cost driver and already has a known, cheap lever from MVP1: raise `max_tokens` further (this
+change bumps it from 16000 to 28000) and keep leaning on "concise, economical wording" in the
+prompt. Given MVP1's STATUS.md already flags generation cost as "higher than expected," paying the
+system-prompt/context tokens once instead of twice is also the cheaper option, not just the simpler
+one.
+
+### Freezer-doubling: a `freezerPortions` count, not a new shopping-list mechanism
+
+"A recipe can suggest doubling the batch and freezing the surplus, and the shopping list should
+reflect the doubled quantity" - the shopping list already buys ingredients scaled to whatever
+`batchCook.makes` portions the recipe's own `ingredients` list is sized for, regardless of how those
+portions get used later (eaten fresh, eaten as a same-week leftover, or frozen) - so "doubling the
+quantity" already happens automatically the moment the model sets a higher `makes` and scales
+ingredients accordingly; no separate shopping-list-side computation was needed. What *was* missing
+was a way to say "of these `makes` portions, N are being frozen for a future week" (distinct from
+`leftoverFor`, which specifically means "eaten again this week") - added as a nullable
+`batchCook.freezerPortions` count, purely descriptive (drives a small MealCard badge, e.g. "Makes 8
+· 2 frozen for later"), explicitly **not** counted toward the leftover cap (frozen portions aren't
+this week's leftovers) and **not** a freezer-inventory system (knowing what's already frozen from a
+prior week and skipping re-buying/re-cooking accordingly stays out of scope, logged to the backlog
+in `REQUIREMENTS.md` already).
+
+### Migration: rename+preserve the Sunday-era columns instead of drop+recreate
+
+`drizzle-kit generate` would default to dropping `sunday_default_mode`/`sunday_adults`/
+`sunday_kids` and adding fresh replacement columns, discarding whatever the operator had already
+configured in Settings. Since `sunday_default_mode` maps directly onto the new `sun_lunch_default_
+mode` (Sunday lunch is exactly the occasion that field already described) and `sunday_adults`/
+`sunday_kids` map directly onto the new shared `family_adults`/`family_kids`, the generated
+migration was hand-edited to `ALTER TABLE ... RENAME COLUMN` for those three instead of drop+add,
+preserving any real value the operator had already set. `sat_breakfast_default_mode` and
+`sat_evening_default_mode` are genuinely new columns (added with a `sit_down` default, matching the
+requirement's "on by default").
+
+### Verification
+
+Beyond `tsc`/`eslint`/`vitest`/`playwright` (all green): the hand-written migration was verified
+against a seeded pre-migration household row (a fresh PGlite instance with only migrations
+0000-0001 applied, a row inserted with non-default Sunday values, then migration 0002 applied on
+top) - the renamed columns kept the operator's values, the two genuinely-new columns got their
+`sit_down` default. Also did a manual browser pass (Playwright script, not the committed test
+suite) through Settings (family-occasion pickers save and persist across reload), the intake form
+(the new family-meals section, Saturday breakfast correctly missing the BBQ option), and the
+recipe view (Parents/Kids/Family tabs correctly filter, the freezer-portions badge renders) -
+per this project's "test UI changes in a browser, don't just claim it works" convention.
+
 ## Blocking items surfaced to the operator (not build-blocking, deploy-blocking)
 
 No `ANTHROPIC_API_KEY`, `UNSPLASH_ACCESS_KEY`, or production database credentials are present in this environment — expected, since §11 says these are provided at deploy time, not during the build. The app is built to run fully with local fallbacks (embedded PGlite database, illustrated placeholder images) so the whole flow is testable without any of those secrets; real keys/DB are required only for production deploy and for hitting the live Claude/Unsplash APIs. Documented precisely in `DEPLOY.md`.

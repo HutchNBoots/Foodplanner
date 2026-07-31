@@ -72,6 +72,7 @@ async function persistPlan(weekId: string, plan: WeekPlan) {
         dayDate: day.date,
         dayOfWeek: day.day,
         slot: meal.slot,
+        track: meal.track,
         title: meal.title,
         servingsAdults: meal.servingsAdults,
         servingsKids: meal.servingsKids,
@@ -84,6 +85,7 @@ async function persistPlan(weekId: string, plan: WeekPlan) {
         fibreG: meal.macrosPerAdultPortion.fibreG,
         batchMakes: meal.batchCook?.makes ?? null,
         leftoverForJson: meal.batchCook?.leftoverFor ?? null,
+        freezerPortions: meal.batchCook?.freezerPortions ?? null,
       });
     }
   }

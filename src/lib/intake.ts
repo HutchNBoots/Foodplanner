@@ -10,10 +10,19 @@ export const PROTEIN_TYPES = [
   "Plant-based",
 ] as const;
 
+// The three family meal occasions (MVP 1.2, see DECISIONS.md) - Saturday
+// breakfast has no "bbq" option (a BBQ breakfast doesn't make sense), the
+// other two keep the full sit-down/BBQ/skip set from MVP1's Sunday mode.
+export const familyMealsSchema = z.object({
+  satBreakfast: z.enum(["sit_down", "skip"]),
+  satEvening: z.enum(["sit_down", "bbq", "skip"]),
+  sunLunch: z.enum(["sit_down", "bbq", "skip"]),
+});
+
 export const weekIntakeSchema = z.object({
   weekStartDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Expected an ISO date (yyyy-mm-dd)."),
   daysMode: z.enum(["full_week", "weekdays_only", "mon_to_sat"]),
-  sundayMode: z.enum(["sit_down", "bbq", "skip"]),
+  familyMeals: familyMealsSchema,
   dishStyles: z.array(z.string()).default([]),
   // Proteins to actually use this week - defaults to all of them (nothing
   // excluded) if the client ever omits the field.

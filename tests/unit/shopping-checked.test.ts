@@ -26,7 +26,7 @@ describe("setShoppingItemChecked", () => {
     const household = await queries.getOrCreateHousehold();
     const week = await queries.createWeek(household.id, "2026-08-10", {
       daysMode: "full_week",
-      sundayMode: "sit_down",
+      familyMeals: { satBreakfast: "sit_down", satEvening: "sit_down", sunLunch: "sit_down" },
       dishStyles: [],
       proteins: [],
       avoidRepeating: [],

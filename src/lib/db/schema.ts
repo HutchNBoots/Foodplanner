@@ -18,10 +18,19 @@ export const households = pgTable("households", {
   name: text("name").notNull().default("Our household"),
   adults: integer("adults").notNull().default(2),
   kidsCount: integer("kids_count").notNull().default(2),
-  /** "sit_down" | "bbq" | "skip" - the default, overridable per-week in intake */
-  sundayDefaultMode: text("sunday_default_mode").notNull().default("sit_down"),
-  sundayAdults: integer("sunday_adults").notNull().default(2),
-  sundayKids: integer("sunday_kids").notNull().default(2),
+  /** The three family meal occasions (MVP 1.2, see DECISIONS.md - supersedes
+   * the MVP1 Sunday-only default). "sat_breakfast" is "sit_down" | "skip"
+   * only (no BBQ); the other two keep the full "sit_down" | "bbq" | "skip"
+   * set, same as MVP1's Sunday mode. All three default to "sit_down" ("on
+   * but easily skippable" per the requirement), overridable per-week in intake. */
+  satBreakfastDefaultMode: text("sat_breakfast_default_mode").notNull().default("sit_down"),
+  satEveningDefaultMode: text("sat_evening_default_mode").notNull().default("sit_down"),
+  sunLunchDefaultMode: text("sun_lunch_default_mode").notNull().default("sit_down"),
+  /** Shared headcount across all three family occasions (MVP 1.2) - was
+   * Sunday-only in MVP1 (`sundayAdults`/`sundayKids`); see DECISIONS.md for
+   * why one shared setting rather than one per occasion. */
+  familyAdults: integer("family_adults").notNull().default(2),
+  familyKids: integer("family_kids").notNull().default(2),
   store: text("store").notNull().default("Sainsbury's"),
   budgetDefault: text("budget_default"),
   createdAt: createdAt(),
@@ -54,8 +63,18 @@ export const meals = pgTable("meals", {
     .references(() => weeks.id, { onDelete: "cascade" }),
   dayDate: text("day_date").notNull(),
   dayOfWeek: text("day_of_week").notNull(),
-  /** "lunch" | "dinner" | "sunday_special" */
-  slot: text("slot").notNull().$type<"lunch" | "dinner" | "sunday_special">(),
+  /** "breakfast" | "lunch" | "dinner" - the meal-time. Legacy rows from
+   * before MVP 1.2 may still hold the old "sunday_special" value (that
+   * union member was removed from what new generations can produce, but old
+   * text-column values aren't rewritten - see DECISIONS.md). */
+  slot: text("slot").notNull().$type<"breakfast" | "lunch" | "dinner" | "sunday_special">(),
+  /** Whose meal this is (MVP 1.2, see DECISIONS.md) - orthogonal to `slot`,
+   * which is just the meal-time. Powers the Parents/Kids/Family recipe-view
+   * tabs. Defaults to "adult" for pre-MVP1.2 rows (all of which were either
+   * the adult track or - if `slot: "sunday_special"` - the one family
+   * occasion that existed then; the latter is special-cased back to
+   * "family" at render/filter time rather than by rewriting this column). */
+  track: text("track").notNull().default("adult").$type<"adult" | "kids" | "family">(),
   title: text("title").notNull(),
   servingsAdults: integer("servings_adults").notNull(),
   servingsKids: integer("servings_kids").notNull().default(0),
@@ -71,6 +90,10 @@ export const meals = pgTable("meals", {
   imageSource: text("image_source").$type<"unsplash" | "illustration">(),
   batchMakes: integer("batch_makes"),
   leftoverForJson: jsonb("leftover_for_json").$type<LeftoverRef[]>(),
+  /** Portions of this batch being frozen for a future week, distinct from
+   * `leftoverForJson` (same-week reuse) - MVP 1.2, see DECISIONS.md.
+   * Null/0 means nothing from this batch is being frozen. */
+  freezerPortions: integer("freezer_portions"),
   createdAt: createdAt(),
 });
 
@@ -144,9 +167,18 @@ export type ImageCredit = { photographerName: string; photographerUrl: string; u
 
 export type FeedbackRating = "loved" | "too_much_effort" | "too_bland" | "repeat";
 
+/** The three family meal occasions (MVP 1.2, see DECISIONS.md) - replaces
+ * MVP1's single `sundayMode`. `satBreakfast` has no "bbq" option (see
+ * DECISIONS.md's "Family-occasion mode options" entry). */
+export type FamilyMeals = {
+  satBreakfast: "sit_down" | "skip";
+  satEvening: "sit_down" | "bbq" | "skip";
+  sunLunch: "sit_down" | "bbq" | "skip";
+};
+
 export type WeekIntake = {
   daysMode: "full_week" | "weekdays_only" | "mon_to_sat";
-  sundayMode: "sit_down" | "bbq" | "skip";
+  familyMeals: FamilyMeals;
   dishStyles: string[];
   proteins: string[];
   avoidRepeating: string[];

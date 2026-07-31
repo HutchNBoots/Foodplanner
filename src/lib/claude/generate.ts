@@ -1,6 +1,6 @@
 import type Anthropic from "@anthropic-ai/sdk";
 import { CLAUDE_MODEL, getAnthropicClient } from "./client";
-import { weekPlanSchema, weekPlanToolInputSchema, type WeekPlan } from "./schema";
+import { countLeftoverSlots, MAX_LEFTOVER_SLOTS, weekPlanSchema, weekPlanToolInputSchema, type WeekPlan } from "./schema";
 import { buildSystemPrompt, buildUserPrompt } from "./systemPrompt";
 import { buildMockWeekPlan } from "./mock";
 import type { WeekIntake, households } from "@/lib/db/schema";
@@ -21,7 +21,11 @@ export async function generateWeekPlan(params: {
   // Escape hatch for the e2e smoke test (and anyone poking at the app
   // without an Anthropic key yet) - see DECISIONS.md.
   if (process.env.MOCK_GENERATION === "1") {
-    return buildMockWeekPlan({ weekStartDate: params.weekStartDate, daysMode: params.intake.daysMode });
+    return buildMockWeekPlan({
+      weekStartDate: params.weekStartDate,
+      daysMode: params.intake.daysMode,
+      familyMeals: params.intake.familyMeals,
+    });
   }
 
   const client = getAnthropicClient();
@@ -48,9 +52,11 @@ export async function generateWeekPlan(params: {
       model: CLAUDE_MODEL,
       // A full week's plan (ingredients, method, macros for every meal) is a
       // lot of structured JSON - 8000 wasn't enough and produced silently
-      // truncated tool input (e.g. missing "days" entirely). Sized generously
-      // above what a 7-day plan realistically needs.
-      max_tokens: 16000,
+      // truncated tool input (e.g. missing "days" entirely). Raised to 16000
+      // for the adult-only plan, then to 28000 for MVP 1.2's combined
+      // adult+kids+family generation (roughly double the meal count) - see
+      // DECISIONS.md on why this is one combined call rather than two.
+      max_tokens: 28000,
       system,
       messages,
       tools: [tool],
@@ -74,6 +80,23 @@ export async function generateWeekPlan(params: {
 
     const parsed = weekPlanSchema.safeParse(toolUse.input);
     if (parsed.success) {
+      // MVP 1.2's weekly leftover cap (see DECISIONS.md) - checked the same
+      // way a Zod failure is: fed back to the model as a corrective message
+      // on the next attempt, rather than silently persisting an
+      // over-the-cap plan.
+      const leftoverSlots = countLeftoverSlots(parsed.data);
+      if (leftoverSlots > MAX_LEFTOVER_SLOTS) {
+        lastError = `Too many leftover meal-slots planned (found ${leftoverSlots} across the whole week, max allowed is ${MAX_LEFTOVER_SLOTS} combined across adult/kids/family tracks).`;
+        messages.push(
+          { role: "assistant", content: JSON.stringify(toolUse.input) },
+          {
+            role: "user",
+            content: `${lastError} Reduce batchCook.leftoverFor entries - cook some of those meals fresh instead, or use batchCook.freezerPortions for surplus meant for a future week instead of a same-week leftover slot.\n\nCall ${TOOL_NAME} again with a corrected, complete plan.`,
+          },
+        );
+        continue;
+      }
+
       return parsed.data;
     }
 

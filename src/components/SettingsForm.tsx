@@ -6,15 +6,28 @@ import type { households } from "@/lib/db/schema";
 
 type Household = typeof households.$inferSelect;
 
+// The three family meal occasions (MVP 1.2, see DECISIONS.md) - Saturday
+// breakfast has no "bbq" option (a BBQ breakfast doesn't make sense), the
+// other two keep the full sit-down/BBQ/skip set from MVP1's Sunday mode.
+const FAMILY_OCCASIONS = [
+  { key: "satBreakfastDefaultMode", label: "Saturday breakfast", modes: ["sit_down", "skip"] as const },
+  { key: "satEveningDefaultMode", label: "Saturday evening", modes: ["sit_down", "bbq", "skip"] as const },
+  { key: "sunLunchDefaultMode", label: "Sunday lunch", modes: ["sit_down", "bbq", "skip"] as const },
+] as const;
+
+const MODE_LABEL: Record<string, string> = { sit_down: "Sit-down", bbq: "BBQ", skip: "Skip" };
+
 export function SettingsForm({ household }: { household: Household }) {
   const router = useRouter();
   const [form, setForm] = useState({
     name: household.name,
     adults: household.adults,
     kidsCount: household.kidsCount,
-    sundayDefaultMode: household.sundayDefaultMode as "sit_down" | "bbq" | "skip",
-    sundayAdults: household.sundayAdults,
-    sundayKids: household.sundayKids,
+    satBreakfastDefaultMode: household.satBreakfastDefaultMode as "sit_down" | "skip",
+    satEveningDefaultMode: household.satEveningDefaultMode as "sit_down" | "bbq" | "skip",
+    sunLunchDefaultMode: household.sunLunchDefaultMode as "sit_down" | "bbq" | "skip",
+    familyAdults: household.familyAdults,
+    familyKids: household.familyKids,
     store: household.store,
     budgetDefault: household.budgetDefault ?? "",
   });
@@ -109,48 +122,57 @@ export function SettingsForm({ household }: { household: Household }) {
       </section>
 
       <section className="card space-y-4 p-4">
-        <h2 className="font-semibold">Sunday defaults</h2>
-        <div className="flex flex-wrap gap-2">
-          {(["sit_down", "bbq", "skip"] as const).map((mode) => (
-            <button
-              key={mode}
-              type="button"
-              onClick={() => set("sundayDefaultMode", mode)}
-              className={`rounded-full border px-3.5 py-1.5 text-sm ${
-                form.sundayDefaultMode === mode
-                  ? "border-brand-600 bg-brand-600 text-white"
-                  : "border-neutral-300 text-neutral-700"
-              }`}
-            >
-              {mode === "sit_down" ? "Sit-down lunch" : mode === "bbq" ? "BBQ" : "Skip"}
-            </button>
-          ))}
-        </div>
+        <h2 className="font-semibold">Family meal occasions</h2>
+        <p className="text-xs text-neutral-400">
+          Defaults for the week - each is still editable per week in the intake form. Saturday
+          breakfast is the softest of the three, on by default but easiest to skip.
+        </p>
+        {FAMILY_OCCASIONS.map((occasion) => (
+          <div key={occasion.key}>
+            <span className="label">{occasion.label}</span>
+            <div className="flex flex-wrap gap-2">
+              {occasion.modes.map((mode) => (
+                <button
+                  key={mode}
+                  type="button"
+                  onClick={() => set(occasion.key, mode)}
+                  className={`rounded-full border px-3.5 py-1.5 text-sm ${
+                    form[occasion.key] === mode
+                      ? "border-brand-600 bg-brand-600 text-white"
+                      : "border-neutral-300 text-neutral-700"
+                  }`}
+                >
+                  {MODE_LABEL[mode]}
+                </button>
+              ))}
+            </div>
+          </div>
+        ))}
         <div className="grid grid-cols-2 gap-4">
           <div>
-            <label className="label" htmlFor="sundayAdults">
-              Sunday adults
+            <label className="label" htmlFor="familyAdults">
+              Family-occasion adults
             </label>
             <input
-              id="sundayAdults"
+              id="familyAdults"
               type="number"
               min={0}
               className="input"
-              value={form.sundayAdults}
-              onChange={(e) => set("sundayAdults", Number(e.target.value))}
+              value={form.familyAdults}
+              onChange={(e) => set("familyAdults", Number(e.target.value))}
             />
           </div>
           <div>
-            <label className="label" htmlFor="sundayKids">
-              Sunday kids
+            <label className="label" htmlFor="familyKids">
+              Family-occasion kids
             </label>
             <input
-              id="sundayKids"
+              id="familyKids"
               type="number"
               min={0}
               className="input"
-              value={form.sundayKids}
-              onChange={(e) => set("sundayKids", Number(e.target.value))}
+              value={form.familyKids}
+              onChange={(e) => set("familyKids", Number(e.target.value))}
             />
           </div>
         </div>

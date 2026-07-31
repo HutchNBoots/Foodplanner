@@ -6,9 +6,13 @@ const householdSchema = z.object({
   name: z.string().min(1),
   adults: z.number().int().min(1).max(10),
   kidsCount: z.number().int().min(0).max(10),
-  sundayDefaultMode: z.enum(["sit_down", "bbq", "skip"]),
-  sundayAdults: z.number().int().min(0).max(10),
-  sundayKids: z.number().int().min(0).max(10),
+  // The three family meal occasions (MVP 1.2, see DECISIONS.md) - Saturday
+  // breakfast has no "bbq" option, the other two keep the full set.
+  satBreakfastDefaultMode: z.enum(["sit_down", "skip"]),
+  satEveningDefaultMode: z.enum(["sit_down", "bbq", "skip"]),
+  sunLunchDefaultMode: z.enum(["sit_down", "bbq", "skip"]),
+  familyAdults: z.number().int().min(0).max(10),
+  familyKids: z.number().int().min(0).max(10),
   store: z.string().min(1),
   budgetDefault: z.string().optional(),
 });

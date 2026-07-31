@@ -5,6 +5,33 @@ Start here for "where are we" - the other docs are: `PROJECT.md` (original spec)
 (method-step eval rubric/results), `README.md` (local dev), `DEPLOY.md` (deploy steps). This file is
 just the up-to-date summary of where things actually stand.
 
+## MVP 1.2 - shipped, in PR to `main`
+
+Kids meals, family meal cadence & leftover balance (`REQUIREMENTS.md`), built on `build/mvp1.2`
+from latest `main` (after MVP 1.1 merged). Everything is built and tested (`tsc`, `eslint`,
+`vitest` - 77 tests, `playwright` all green), plus a manual browser pass through Settings, the
+intake form, and the Parents/Kids/Family tabs. No open items this time - unlike MVP 1.1, nothing
+here needed a live `ANTHROPIC_API_KEY` to verify (all mocked-generation + pure-logic coverage).
+
+- **Three family meal occasions** (Saturday breakfast - on but easily skippable, Saturday evening,
+  Sunday lunch) replace MVP1's Sunday-only default, editable in Settings and per-week in the intake
+  form. Saturday breakfast has no BBQ option; the other two keep sit-down/BBQ/skip.
+- **Kids meal track** - a separate, simple Mon-Sat breakfast/lunch/dinner plan, pulled from the
+  same canonical ingredient list, allowed to repeat (unlike the adult anti-repeat rule), without
+  the adult calorie-deficit/high-protein framing.
+- **Weekly leftover cap** - no more than 2 same-week leftover meal-slots across the whole plan
+  (adult+kids+family combined), enforced via the existing Zod-validation retry loop.
+- **Freezer-batch doubling** - a `freezerPortions` count on batch-cook meals, separate from
+  same-week leftovers, shown as a small badge.
+- **Parents / Kids / Family recipe-view tabs** - client-side filter over the week's meals; the
+  shopping list stays one unified, aisle-grouped list across all three.
+- One combined generation call (not split adult/kids) - `max_tokens` raised to 28000 to
+  accommodate roughly double the meal count. See `DECISIONS.md` for the cost/complexity reasoning.
+- Migration renames+preserves the operator's existing Sunday-era household settings
+  (`sunday_default_mode`/`sunday_adults`/`sunday_kids` → `sun_lunch_default_mode`/`family_adults`/
+  `family_kids`) rather than dropping them - verified manually against a seeded pre-migration row
+  before merging (see `DECISIONS.md`).
+
 ## MVP 1.1 - shipped, one item needs the operator to finish it
 
 Consistency/CX milestone (`REQUIREMENTS.md`), built on `claude/build-mvp1-1-pq3e0l`
@@ -37,7 +64,7 @@ that file for the rubric and full context.
 - **Live app**: Vercel project, deployed from `main`. URL as of last check: `foodplanner-pi.vercel.app` (confirm current one in the Vercel dashboard - custom/preview domains may have changed).
 - **Database**: Vercel Postgres (Neon-backed), linked to the project. Migrations run automatically as part of every Vercel build (`vercel-build` script in `package.json`) - no manual migration step needed, ever, including for future schema changes.
 - **Confirmed by the operator, live, with a real Anthropic key**: login, Settings (household defaults), the full intake → generate → recipes → shopping list → feedback flow.
-- Currently showing `v3` on the login/home pages (see "Version number" below) once this MVP 1.1 PR merges and redeploys - if you see `v2` still, it hasn't picked up this push yet.
+- Currently showing `v4` on the login/home pages (see "Version number" below) once this MVP 1.2 PR merges and redeploys - if you see an older number still, it hasn't picked up this push yet.
 
 ## What's in the app (v1 scope, per PROJECT.md)
 
@@ -60,6 +87,7 @@ Weekly intake form (days needed, Sunday mode, dish styles, **protein select/unse
 - **The DB client (`src/lib/db/client.ts`) must stay a `globalThis`-cached singleton**, not a plain module-level `const` - Next's per-route bundle chunking re-evaluates plain module consts more than once per process, which is silently fatal for PGlite specifically (see the "e2e test caught" bug in DECISIONS.md).
 - **Never run `npm run db:migrate` against a real `DATABASE_URL` from this sandbox/session** - outbound network here is allowlisted and doesn't include Neon's host (or Railway's, previously). Migrations against production run automatically via the `vercel-build` script instead; that's intentional, not a workaround to route around.
 - The e2e smoke test (`tests/e2e/smoke.spec.ts`) always mocks generation (`MOCK_GENERATION=1`) - the max_tokens bug above only surfaced on the operator's first *live* generation call, since that path was never exercised by automated tests. Worth keeping in mind if something else about the real Claude call ever needs debugging.
+- **`drizzle-kit generate` needs a real TTY when a schema change looks like a column rename** (its interactive resolver can't run in this non-TTY sandbox, and fails hard with no non-interactive fallback). When that happens: use `drizzle-kit generate --custom` to get a correctly-chained empty migration file, write the `ALTER TABLE ... RENAME COLUMN` SQL by hand, then hand-patch the accompanying `meta/000N_snapshot.json` to the new schema shape (`--custom` doesn't diff the schema, so the snapshot is left stale otherwise) - verify with a plain `drizzle-kit generate` afterward reporting "No schema changes, nothing to migrate". See `src/db/migrations/0002_family_meals_kids_tracks.sql` and `DECISIONS.md`'s MVP 1.2 "Migration" entry for a worked example.
 
 ## Workflow notes for continuing in a new chat
 

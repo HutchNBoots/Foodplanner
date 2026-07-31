@@ -38,9 +38,11 @@ export async function updateHousehold(
     name: string;
     adults: number;
     kidsCount: number;
-    sundayDefaultMode: string;
-    sundayAdults: number;
-    sundayKids: number;
+    satBreakfastDefaultMode: string;
+    satEveningDefaultMode: string;
+    sunLunchDefaultMode: string;
+    familyAdults: number;
+    familyKids: number;
     store: string;
     budgetDefault: string | null;
   }>,
@@ -55,7 +57,11 @@ export async function updateHousehold(
 
 /** Recent dinner/lunch titles across the last `weeksBack` weeks, used both to
  * pre-fill "avoid repeating" suggestions in the intake form and to steer the
- * generation prompt away from repeats (PROJECT.md §3, §4). */
+ * generation prompt away from repeats (PROJECT.md §3, §4). Adult + family
+ * track only (MVP 1.2, see DECISIONS.md) - kids meals are expected/allowed
+ * to repeat and shouldn't count against variety here. Legacy pre-MVP1.2
+ * rows all default to `track: "adult"` (or are the old `sunday_special`
+ * slot, also effectively family/adult), so they're naturally included. */
 export async function getRecentMealTitles(householdId: string, weeksBack = 3) {
   const recentWeeks = await db
     .select({ id: weeks.id })
@@ -68,9 +74,9 @@ export async function getRecentMealTitles(householdId: string, weeksBack = 3) {
 
   const weekIds = recentWeeks.map((w) => w.id);
   const rows = await db
-    .select({ title: meals.title, slot: meals.slot, dayDate: meals.dayDate })
+    .select({ title: meals.title, slot: meals.slot, dayDate: meals.dayDate, track: meals.track })
     .from(meals)
-    .where(inArray(meals.weekId, weekIds));
+    .where(and(inArray(meals.weekId, weekIds), inArray(meals.track, ["adult", "family"])));
 
   // De-dupe titles, most recent first.
   const seen = new Set<string>();
