@@ -25,14 +25,34 @@ function asPlainText(items: ShoppingItem[]) {
     .join("\n\n");
 }
 
-export function ShoppingList({ items }: { items: ShoppingItem[] }) {
+export function ShoppingList({ items: initialItems }: { items: ShoppingItem[] }) {
   const [copied, setCopied] = useState(false);
+  // Ticking off items while shopping (MVP 1.1 "must-ship" CX item, see
+  // DECISIONS.md) - persisted server-side via PATCH, with optimistic local
+  // state so a tap feels instant instead of waiting on the round trip.
+  const [items, setItems] = useState(initialItems);
   const groups = groupByAisle(items);
 
   async function copy() {
     await navigator.clipboard.writeText(asPlainText(items));
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
+  }
+
+  async function toggle(item: ShoppingItem) {
+    const checked = !item.checked;
+    setItems((prev) => prev.map((i) => (i.id === item.id ? { ...i, checked } : i)));
+
+    const res = await fetch(`/api/shopping-items/${item.id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ checked }),
+    });
+    if (!res.ok) {
+      // Roll back on failure rather than leaving the UI showing a state that
+      // didn't actually persist.
+      setItems((prev) => prev.map((i) => (i.id === item.id ? { ...i, checked: !checked } : i)));
+    }
   }
 
   if (items.length === 0) {
@@ -51,13 +71,27 @@ export function ShoppingList({ items }: { items: ShoppingItem[] }) {
           <ul className="mt-2 divide-y divide-neutral-100">
             {list.map((item) => (
               <li key={item.id} className="py-2">
-                <div className="flex items-baseline justify-between gap-2">
-                  <span className="font-medium text-neutral-800">{item.productName}</span>
-                  <span className="shrink-0 text-sm text-neutral-500">{item.displayQuantity}</span>
-                </div>
-                <p className="mt-0.5 text-xs text-neutral-400">
-                  Used in: {item.usedInJson.map((u) => `${u.day} ${u.title}`).join(", ")}
-                </p>
+                <label className="flex cursor-pointer items-start gap-3">
+                  <input
+                    type="checkbox"
+                    className="mt-1 h-4 w-4 shrink-0 rounded border-neutral-300 text-brand-600"
+                    checked={item.checked}
+                    onChange={() => toggle(item)}
+                  />
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-baseline justify-between gap-2">
+                      <span
+                        className={`font-medium ${item.checked ? "text-neutral-400 line-through" : "text-neutral-800"}`}
+                      >
+                        {item.productName}
+                      </span>
+                      <span className="shrink-0 text-sm text-neutral-500">{item.displayQuantity}</span>
+                    </div>
+                    <p className="mt-0.5 text-xs text-neutral-400">
+                      Used in: {item.usedInJson.map((u) => `${u.day} ${u.title}`).join(", ")}
+                    </p>
+                  </div>
+                </label>
               </li>
             ))}
           </ul>
