@@ -25,6 +25,8 @@ export async function generateWeekPlan(params: {
       weekStartDate: params.weekStartDate,
       daysMode: params.intake.daysMode,
       familyMeals: params.intake.familyMeals,
+      parentMeals: params.intake.parentMeals,
+      kidsMeals: params.intake.kidsMeals,
     });
   }
 

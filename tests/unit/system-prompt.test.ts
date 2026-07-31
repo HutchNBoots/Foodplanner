@@ -7,6 +7,8 @@ function baseIntake(overrides: Partial<WeekIntake> = {}): WeekIntake {
   return {
     daysMode: "full_week",
     familyMeals: { satBreakfast: "sit_down", satEvening: "sit_down", sunLunch: "sit_down" },
+    parentMeals: { breakfast: false, lunch: true, dinner: true },
+    kidsMeals: { breakfast: true, lunch: true, dinner: true },
     dishStyles: [],
     proteins: [...PROTEIN_TYPES],
     avoidRepeating: [],

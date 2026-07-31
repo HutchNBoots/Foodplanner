@@ -1,4 +1,5 @@
 import { pgTable, text, integer, real, jsonb, boolean } from "drizzle-orm/pg-core";
+import { PROTEIN_TYPES } from "@/lib/intake";
 
 const id = () =>
   text("id")
@@ -31,6 +32,14 @@ export const households = pgTable("households", {
    * why one shared setting rather than one per occasion. */
   familyAdults: integer("family_adults").notNull().default(2),
   familyKids: integer("family_kids").notNull().default(2),
+  /** Default protein selection for the intake form's "Proteins to use this
+   * week" picker (MVP 2.1, see DECISIONS.md) - defaults to everything so
+   * existing households see no change in behaviour until they actually edit
+   * this in Settings. Still fully overridable per week. */
+  favoriteProteins: jsonb("favorite_proteins")
+    .notNull()
+    .$type<string[]>()
+    .$defaultFn(() => [...PROTEIN_TYPES]),
   store: text("store").notNull().default("Sainsbury's"),
   budgetDefault: text("budget_default"),
   createdAt: createdAt(),
@@ -176,9 +185,20 @@ export type FamilyMeals = {
   sunLunch: "sit_down" | "bbq" | "skip";
 };
 
+/** Which meal-times a track needs this week (MVP 2.1, see DECISIONS.md) -
+ * lets adults optionally get a breakfast, and lets the kids track be
+ * skipped entirely (toggle all three off) rather than always-on. */
+export type MealTimesNeeded = {
+  breakfast: boolean;
+  lunch: boolean;
+  dinner: boolean;
+};
+
 export type WeekIntake = {
   daysMode: "full_week" | "weekdays_only" | "mon_to_sat";
   familyMeals: FamilyMeals;
+  parentMeals: MealTimesNeeded;
+  kidsMeals: MealTimesNeeded;
   dishStyles: string[];
   proteins: string[];
   avoidRepeating: string[];

@@ -7,6 +7,14 @@ type DaysMode = "full_week" | "weekdays_only" | "mon_to_sat";
 type SatBreakfastMode = "sit_down" | "skip";
 type OccasionMode = "sit_down" | "bbq" | "skip";
 type Effort = "quick" | "mixed" | "more_cooking";
+type MealTime = "breakfast" | "lunch" | "dinner";
+type MealTimesNeeded = { breakfast: boolean; lunch: boolean; dinner: boolean };
+
+const MEAL_TIMES: { key: MealTime; label: string }[] = [
+  { key: "breakfast", label: "Breakfast" },
+  { key: "lunch", label: "Lunch" },
+  { key: "dinner", label: "Dinner" },
+];
 
 const DAYS_OPTIONS: { value: DaysMode; label: string }[] = [
   { value: "full_week", label: "Full 7 days" },
@@ -46,6 +54,7 @@ export function IntakeForm({
   defaultSatEveningMode,
   defaultSunLunchMode,
   defaultBudget,
+  defaultProteins,
   recentTitles,
   dishStyles,
   deemphasised,
@@ -56,6 +65,7 @@ export function IntakeForm({
   defaultSatEveningMode: OccasionMode;
   defaultSunLunchMode: OccasionMode;
   defaultBudget: string;
+  defaultProteins: string[];
   recentTitles: string[];
   dishStyles: string[];
   deemphasised: string[];
@@ -69,8 +79,26 @@ export function IntakeForm({
   const [satBreakfast, setSatBreakfast] = useState<SatBreakfastMode>(defaultSatBreakfastMode);
   const [satEvening, setSatEvening] = useState<OccasionMode>(defaultSatEveningMode);
   const [sunLunch, setSunLunch] = useState<OccasionMode>(defaultSunLunchMode);
+  // Which meal-times each track needs this week (MVP 2.1, see DECISIONS.md) -
+  // lets adults optionally get a breakfast, and lets the kids track be
+  // skipped entirely (toggle all three off). Defaults match pre-MVP2.1
+  // behaviour exactly - not Settings-backed, just a sensible starting point,
+  // same as daysMode/effort below.
+  const [parentMeals, setParentMeals] = useState<MealTimesNeeded>({
+    breakfast: false,
+    lunch: true,
+    dinner: true,
+  });
+  const [kidsMeals, setKidsMeals] = useState<MealTimesNeeded>({
+    breakfast: true,
+    lunch: true,
+    dinner: true,
+  });
   const [selectedStyles, setSelectedStyles] = useState<string[]>([]);
-  const [selectedProteins, setSelectedProteins] = useState<string[]>(proteinTypes);
+  // Defaults from the household's favorite proteins (MVP 2.1, see
+  // DECISIONS.md) instead of always defaulting to every protein - still
+  // fully overridable per week.
+  const [selectedProteins, setSelectedProteins] = useState<string[]>(defaultProteins);
   const [avoidSelected, setAvoidSelected] = useState<string[]>([]);
   const [avoidCustom, setAvoidCustom] = useState("");
   // Pre-filled from household settings (MVP 1.1, see DECISIONS.md's "Intake
@@ -106,6 +134,8 @@ export function IntakeForm({
         weekStartDate,
         daysMode,
         familyMeals: { satBreakfast, satEvening, sunLunch },
+        parentMeals,
+        kidsMeals,
         dishStyles: selectedStyles,
         proteins: selectedProteins,
         avoidRepeating,
@@ -194,6 +224,41 @@ export function IntakeForm({
               />
             ))}
           </div>
+        </div>
+      </section>
+
+      <section className="card space-y-4 p-4">
+        <span className="label">Meals needed this week</span>
+        <div>
+          <p className="mb-1.5 text-sm text-neutral-600">Parents</p>
+          <div className="flex flex-wrap gap-2">
+            {MEAL_TIMES.map((mt) => (
+              <PillOption
+                key={mt.key}
+                label={mt.label}
+                active={parentMeals[mt.key]}
+                onClick={() => setParentMeals((m) => ({ ...m, [mt.key]: !m[mt.key] }))}
+              />
+            ))}
+          </div>
+        </div>
+        <div>
+          <p className="mb-1.5 text-sm text-neutral-600">Kids</p>
+          <div className="flex flex-wrap gap-2">
+            {MEAL_TIMES.map((mt) => (
+              <PillOption
+                key={mt.key}
+                label={mt.label}
+                active={kidsMeals[mt.key]}
+                onClick={() => setKidsMeals((m) => ({ ...m, [mt.key]: !m[mt.key] }))}
+              />
+            ))}
+          </div>
+          {!kidsMeals.breakfast && !kidsMeals.lunch && !kidsMeals.dinner && (
+            <p className="mt-2 text-xs text-neutral-400">
+              All three off - no kids meals will be planned this week.
+            </p>
+          )}
         </div>
       </section>
 

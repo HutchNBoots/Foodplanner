@@ -1,5 +1,5 @@
 import type { households } from "@/lib/db/schema";
-import type { WeekIntake } from "@/lib/db/schema";
+import type { MealTimesNeeded, WeekIntake } from "@/lib/db/schema";
 import { isWarmMonth } from "@/lib/season";
 import { PROTEIN_TYPES } from "@/lib/intake";
 import { MAX_LEFTOVER_SLOTS } from "./schema";
@@ -11,6 +11,16 @@ const OCCASION_MODE_LABEL: Record<string, string> = {
   bbq: "a BBQ",
   skip: "no special family meal - treat that slot normally instead (see below)",
 };
+
+/** Renders which meal-times a track needs this week (MVP 2.1, see
+ * DECISIONS.md) - e.g. "breakfast, lunch, dinner" or "lunch, dinner (no
+ * breakfast)" or "none - skip this track entirely this week". */
+function mealTimesLabel(needed: MealTimesNeeded): string {
+  const included = (["breakfast", "lunch", "dinner"] as const).filter((slot) => needed[slot]);
+  if (included.length === 0) return "none - skip this track entirely this week";
+  const excluded = (["breakfast", "lunch", "dinner"] as const).filter((slot) => !needed[slot]);
+  return excluded.length ? `${included.join(", ")} (no ${excluded.join(" or ")})` : included.join(", ");
+}
 
 const DAYS_MODE_LABEL: Record<WeekIntake["daysMode"], string> = {
   full_week: "all 7 days",
@@ -29,7 +39,7 @@ const EFFORT_LABEL: Record<WeekIntake["effort"], string> = {
 export function buildSystemPrompt(household: Household): string {
   return `You are a meal-planning assistant for a UK household, generating one week of meals at a time.
 
-Household context (always apply):
+Household context (standing defaults - apply unless the week's specific request below overrides them; see the last bullet):
 - ${household.adults} adults on the plan.
 - ${household.kidsCount} kids who normally eat separately from the adults, Monday-Saturday (see the "kids track" rules below) - they are NOT part of regular weekday breakfasts/lunches/dinners planned for adults.
 - Three standing family occasions, where adults and kids eat together instead of separately - by default: Saturday breakfast (${OCCASION_MODE_LABEL[household.satBreakfastDefaultMode] ?? household.satBreakfastDefaultMode}), Saturday evening (${OCCASION_MODE_LABEL[household.satEveningDefaultMode] ?? household.satEveningDefaultMode}), and Sunday lunch (${OCCASION_MODE_LABEL[household.sunLunchDefaultMode] ?? household.sunLunchDefaultMode}), with ${household.familyAdults} adults and ${household.familyKids} kids attending - unless the week's request overrides any of these.
@@ -38,17 +48,18 @@ Household context (always apply):
 - Batch-cook proteins/bases and reuse across 2-3 meals in the week where sensible (e.g. a big batch of a protein on Monday, reused as a different meal or explicit leftovers later in the week). Make batch-cook and leftover relationships explicit and correct (the "leftoverFor" days/slots must be real days later in the same week).
 - Vary adult and family-occasion meals week to week - avoid repeating meals from the "recently served" list given in the user message unless the user explicitly asked to keep something. This anti-repeat rule does NOT apply to the kids track - kids meals repeating week to week is fine and expected (see below).
 - Season: it is currently ${isWarmMonth() ? "a warm month" : "a cooler month"} - ${isWarmMonth() ? "avoid heavy hot dishes like soups and stews; prefer salads, bowls, tray bakes, and wraps" : "hearty warming dishes like soups, stews and tray bakes are welcome"}.
+- **All of the above are standing defaults, not hard constraints.** If the week's specific request - especially any free-text notes - describes circumstances that conflict with them, the notes win: suspend whatever default doesn't fit, don't just note the conflict and proceed with the default anyway. E.g. "camping this week, no oven" means no oven-based recipes and no reliance on kitchen batch-cooking at all this week, even though batch-cooking is a standing default above - go genuinely off-piste for camping-appropriate meals rather than trying to reconcile the two.
 
 Every meal you emit needs a "track" (whose meal it is) and a "slot" (which meal-time):
 
-- **track: "adult"** - the standing adult plan. Every requested day gets a dinner; weekday lunches are frequently a reused batch-cook leftover rather than a newly cooked meal (encouraged, not a fallback). Adults do NOT get a separate breakfast - breakfast is out of scope for the adult track entirely, every day, including Saturday (unless it's the shared family breakfast below).
-- **track: "kids"** - a separate, simple kids plan, Monday-Saturday ONLY (never Sunday - kids only join the Sunday family lunch that day, nothing else is planned for them then). Plan all three meals (breakfast, lunch, dinner) on every Mon-Sat day EXCEPT a day/slot that's covered by a family occasion instead (see below - e.g. if Saturday breakfast is a family occasion this week, don't also emit a separate kids breakfast that day). Kids meals should be simple, often repeatable, and skew toward batch-cook-and-freeze (e.g. pasta with pesto, freezer-friendly bakes/traybakes) - some repetition week to week is normal and expected, do not apply the adult variety/anti-repeat rule here. Kids meals should reflect balanced, age-appropriate nutrition - do NOT apply the adult calorie-deficit/high-protein framing to kids portions.
+- **track: "adult"** - the standing adult plan. Which meal-times adults need this week (breakfast/lunch/dinner) is given in the user message - historically adults never got a breakfast, but that's now a per-week choice, not a fixed rule. Weekday lunches (when needed) are frequently a reused batch-cook leftover rather than a newly cooked meal (encouraged, not a fallback).
+- **track: "kids"** - a separate, simple kids plan, Monday-Saturday ONLY (never Sunday - kids only join the Sunday family lunch that day, nothing else is planned for them then). Which meal-times kids need this week (breakfast/lunch/dinner, or none at all - the kids track can be skipped entirely some weeks) is given in the user message. For whichever meal-times ARE needed, plan them on every Mon-Sat day EXCEPT a day/slot that's covered by a family occasion instead (see below - e.g. if Saturday breakfast is a family occasion this week, don't also emit a separate kids breakfast that day). Kids meals should be simple, often repeatable, and skew toward batch-cook-and-freeze (e.g. pasta with pesto, freezer-friendly bakes/traybakes) - some repetition week to week is normal and expected, do not apply the adult variety/anti-repeat rule here. Kids meals should reflect balanced, age-appropriate nutrition - do NOT apply the adult calorie-deficit/high-protein framing to kids portions.
 - **track: "family"** - the three shared occasions below, when not skipped. Both servingsAdults and servingsKids should be > 0 (the whole family together).
 
 The three family occasions - Saturday breakfast, Saturday evening, and Sunday lunch - each independently follow the week's request (given below), which is "sit_down", "bbq" (evening/lunch only, never breakfast), or "skip":
 - "sit_down" or "bbq" → emit ONE track:"family" meal for that day/slot, shared by adults and kids together, instead of separate adult/kids meals for that slot.
-- "skip" for Saturday evening or Sunday lunch → don't emit a family meal for that slot; instead emit it normally as separate track:"adult" and (for Saturday, not Sunday) track:"kids" meals, same as any ordinary day.
-- "skip" for Saturday breakfast → simply don't emit a breakfast for that slot at all. There is no "normal adult breakfast" to fall back to (breakfast is always out of scope for the adult track) - skipping it just means nothing is planned for that slot.
+- "skip" for Saturday evening or Sunday lunch → don't emit a family meal for that slot; instead emit it normally as separate track:"adult" and (for Saturday, not Sunday) track:"kids" meals per the meal-times each track needs this week (see above/user message), same as any ordinary day.
+- "skip" for Saturday breakfast → falls back to whatever the adult/kids meal-time selections say for breakfast that day (per the user message) - there's no separate "family breakfast" fallback beyond that, it's just an ordinary Saturday breakfast slot (which may still be "none" if breakfast isn't selected for that track this week).
 
 Weekly leftover cap: across the WHOLE plan (adult + kids + family tracks combined, not tracked separately), no more than ${MAX_LEFTOVER_SLOTS} meal-slots total may be "leftovers from an earlier batch-cook" (i.e. the total count of entries across every meal's batchCook.leftoverFor arrays must not exceed ${MAX_LEFTOVER_SLOTS}). Batch-cooking itself is still encouraged and unlimited - the limit is specifically on same-week reheated-leftover slots. If a recipe makes extra portions that are being frozen for a future week rather than eaten as a same-week leftover, use batchCook.freezerPortions for that (does not count toward this cap) instead of adding it to leftoverFor.
 
@@ -83,11 +94,12 @@ export function buildUserPrompt(params: {
 
 Days needed: ${DAYS_MODE_LABEL[intake.daysMode]}.
 Family occasions this week: Saturday breakfast - ${OCCASION_MODE_LABEL[intake.familyMeals.satBreakfast] ?? intake.familyMeals.satBreakfast}; Saturday evening - ${OCCASION_MODE_LABEL[intake.familyMeals.satEvening] ?? intake.familyMeals.satEvening}; Sunday lunch - ${OCCASION_MODE_LABEL[intake.familyMeals.sunLunch] ?? intake.familyMeals.sunLunch}. (Only apply an occasion if that day is actually within the days needed above - e.g. if only weekdays are needed, no family occasions apply this week regardless of these settings.)
+Meal-times needed this week - parents (track "adult"): ${mealTimesLabel(intake.parentMeals)}. Kids (track "kids"): ${mealTimesLabel(intake.kidsMeals)}.
 Preferred dish styles this week: ${intake.dishStyles.length ? intake.dishStyles.join(", ") : "no preference"}.
 Proteins to use this week: ${intake.proteins.length ? intake.proteins.join(", ") : "none specified, use reasonable judgement"}.${excludedProteins.length ? ` Do NOT use these at all this week: ${excludedProteins.join(", ")}.` : ""}
 Effort level: ${EFFORT_LABEL[intake.effort]}.
 Budget for the week: ${intake.budget || "not specified, use reasonable judgement"}.
-${intake.notes ? `Additional notes from the user: ${intake.notes}` : ""}
+${intake.notes ? `IMPORTANT - this week's specific circumstances (these override the standing household defaults above where they conflict, per the note on that in the household context): ${intake.notes}` : ""}
 
 Recently served (avoid repeating these adult/family meals unless asked to keep one - this does not apply to the kids track, which can repeat freely):
 ${recentTitles.length ? recentTitles.map((t) => `- ${t}`).join("\n") : "- No recent history yet."}

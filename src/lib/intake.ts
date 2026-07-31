@@ -19,10 +19,23 @@ export const familyMealsSchema = z.object({
   sunLunch: z.enum(["sit_down", "bbq", "skip"]),
 });
 
+// Which meal-times a track needs this week (MVP 2.1, see DECISIONS.md) -
+// lets adults optionally get a breakfast, and lets the kids track be
+// skipped entirely by toggling all three off.
+export const mealTimesNeededSchema = z.object({
+  breakfast: z.boolean(),
+  lunch: z.boolean(),
+  dinner: z.boolean(),
+});
+
 export const weekIntakeSchema = z.object({
   weekStartDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Expected an ISO date (yyyy-mm-dd)."),
   daysMode: z.enum(["full_week", "weekdays_only", "mon_to_sat"]),
   familyMeals: familyMealsSchema,
+  // Defaults match pre-MVP2.1 behaviour exactly (adults: lunch+dinner, no
+  // breakfast; kids: all three) if the client ever omits these fields.
+  parentMeals: mealTimesNeededSchema.default({ breakfast: false, lunch: true, dinner: true }),
+  kidsMeals: mealTimesNeededSchema.default({ breakfast: true, lunch: true, dinner: true }),
   dishStyles: z.array(z.string()).default([]),
   // Proteins to actually use this week - defaults to all of them (nothing
   // excluded) if the client ever omits the field.

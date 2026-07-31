@@ -454,6 +454,68 @@ shorter default duration and killed mid-generation on a real retry. Never caught
 test's only retry-adjacent coverage is the mocked unit test
 (`tests/unit/retry-generation.test.ts`), which resolves near-instantly either way.
 
+## MVP 2.1 — favorite proteins, optional meal-times, stronger free-text override
+
+Four small, operator-requested items from live use, built as one milestone (branch `build/mvp2.1`).
+
+### 1. Favorite proteins: a household default, not a per-week-only choice
+
+The intake's protein picker (all 7 selected by default, deselect to exclude) never had a
+household-level default - every week started from "everything on," same as day one. Added
+`households.favoriteProteins` (jsonb `string[]`, defaults to all `PROTEIN_TYPES` so existing
+households see no behaviour change until they actually edit it in Settings), editable in Settings
+with the same pill-picker UI as the intake form, and the intake form now defaults its selection
+from that instead of always defaulting to "all". Still fully overridable per week - same pattern as
+budget and the family occasions.
+
+### 2 & 4. Meal-times as independent toggles, not fixed per-track rules
+
+These two requested items are really one design question - "which meal-times does each track need
+this week" - so implemented together:
+
+- **Adults gain an optional breakfast.** Previously hard-coded as entirely out of scope
+  (`buildSystemPrompt`: "Adults do NOT get a separate breakfast... every day, including Saturday").
+  The underlying data model already supports it with zero schema change - `slot: "breakfast"` /
+  `track: "adult"` was already a valid combination (MVP 1.2's slot rework made `breakfast` a normal
+  slot value), it was simply never requested. So this is a prompt+intake change only.
+- **Kids meals become genuinely optional** (the literal ask - "make children meals optional") by
+  the same mechanism: toggle all three kids meal-times off and no kids track is generated that
+  week, rather than adding a single separate "skip kids" switch that would duplicate the same
+  on/off concept the breakfast/lunch/dinner toggles already provide.
+
+Implementation: two new `WeekIntake` fields, `parentMeals` and `kidsMeals`, each
+`{ breakfast: boolean; lunch: boolean; dinner: boolean }`. New intake form section, "Meals needed
+this week," with two toggle rows. Defaults match current behaviour exactly (parents: lunch+dinner
+on, breakfast off; kids: all three on) so nothing changes for a household that never touches this
+section. Toggles apply to every day in the requested range **except** where a family occasion
+already covers that specific day/slot (Saturday breakfast/evening, Sunday) or Sunday generally
+(kids still never get a separate Sunday meal, per the standing "kids eat separately Mon-Sat" rule -
+that's a separate, unrelated concept from the new per-meal-time toggles and this milestone doesn't
+touch it).
+
+**Scope call: intake-only, no new household-level defaults for these two.** Unlike family occasions
+and (now) proteins, `parentMeals`/`kidsMeals` don't get a Settings-level default - just sensible
+hardcoded initial state in the intake form, matching how `daysMode`/`effort` already work (some
+fields are Settings-backed, some are reasonable one-off defaults; not every field needs the former).
+The operator's ask was specifically "a box on the generate [form]", not a standing setting, and
+adding six more household columns for toggles that'll rarely change from their sensible defaults
+would be scope beyond what was actually requested.
+
+### 3. Free-text notes as an explicit override, not just "additional context"
+
+The notes field existed since MVP1 but was framed in the prompt as one more soft input alongside
+dish styles/budget/effort, with no signal that it should ever *override* the household's standing
+assumptions (batch-cooking, variety, oven-based cooking implicitly assumed throughout) when they
+conflict. Concretely: "I'm camping this week, no oven" was competing on equal footing with rules
+like "batch-cook proteins and reuse across meals" rather than suspending them. Fixed with two
+additions, not a rewrite: `buildSystemPrompt`'s household-context intro now states these are
+"standing defaults, not hard constraints" and that the week's specific request - especially
+free-text notes - takes priority when they conflict, with the camping/no-oven example spelled out
+directly so the instruction is concrete rather than abstract. `buildUserPrompt`'s notes line is
+re-labelled from a neutral "Additional notes from the user" to an explicit "override standing
+defaults where they conflict" framing when notes are present, so the priority is stated right where
+the model reads the actual free text, not just once further up in the system prompt.
+
 ## Post-merge hotfix (MVP 2 era): empty ingredients array surviving a retry
 
 A real generation call failed hard with a Zod error at two separate paths
