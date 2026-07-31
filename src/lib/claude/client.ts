@@ -10,4 +10,4 @@ export function getAnthropicClient(): Anthropic {
   return client;
 }
 
-export const CLAUDE_MODEL = process.env.ANTHROPIC_MODEL || "claude-sonnet-4-5";
+export const CLAUDE_MODEL = process.env.ANTHROPIC_MODEL || "claude-sonnet-5";

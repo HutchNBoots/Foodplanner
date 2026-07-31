@@ -70,6 +70,16 @@ Originally `DEPLOY.md` asked the operator to run `npm run db:migrate` by hand fr
 
 Fixed by adding a `vercel-build` script to `package.json`: `tsx src/lib/db/migrate.ts && next build`. Vercel automatically uses a `vercel-build` script instead of `build` when one is present (zero extra config, no `vercel.json` needed) - and Vercel's own build containers have normal, unrestricted internet access, so the migration runs there instead, against the real `DATABASE_URL` env var already configured for that deployment. It's safe to run on every deploy (Drizzle's migrator tracks which migrations already applied and skips them), so this isn't just a one-time fix for this operator's setup - it's also the correct ongoing behavior: any future schema change ships and applies automatically on the next deploy, no manual step at all. Local `npm run build`/`npm run dev` are unaffected (they use the plain `build` script, which Vercel ignores in favor of `vercel-build` when both exist).
 
+### Bug found on the operator's first real (non-mocked) generation call: `max_tokens` too low
+
+The e2e smoke test uses `MOCK_GENERATION=1` (see the Testing section above), so the first time the *real* Claude call ever ran was the operator's live post-deploy test - and it failed with a Zod error (`"days": expected array, received undefined`), meaning the tool-call input came back missing that key entirely. Root cause: `max_tokens: 8000` in `src/lib/claude/generate.ts`, an arbitrary number picked during scaffolding, wasn't actually enough for a full 7-day plan's ingredients/method/macros for every meal - the response got cut off mid-generation before (or while) building the `days` array, and the truncated tool input just silently failed schema validation with no indication *why*.
+
+Fixed three ways:
+- Raised `max_tokens` to 16000 - comfortably above a realistic full-week payload.
+- Added an explicit check for `response.stop_reason === "max_tokens"` that fails with a clear, specific message ("Claude's response was cut off before it finished...") instead of letting truncation fall through to a confusing Zod parse error - if this ever happens again (e.g. an unusually verbose response), it'll be immediately diagnosable from the error shown in the UI rather than requiring a repeat of this debugging session.
+- Tightened the system prompt to explicitly ask for economical wording (short method steps, no padding) given how much has to fit in one response - reduces the odds of hitting the limit at all, independent of what the limit is set to.
+- Also updated the default model from `claude-sonnet-4-5` to `claude-sonnet-5` (the current recommended default) while making this change, since `ANTHROPIC_MODEL` was never actually exercised against a real key before now either.
+
 ## Blocking items surfaced to the operator (not build-blocking, deploy-blocking)
 
 No `ANTHROPIC_API_KEY`, `UNSPLASH_ACCESS_KEY`, or production database credentials are present in this environment — expected, since §11 says these are provided at deploy time, not during the build. The app is built to run fully with local fallbacks (embedded PGlite database, illustrated placeholder images) so the whole flow is testable without any of those secrets; real keys/DB are required only for production deploy and for hitting the live Claude/Unsplash APIs. Documented precisely in `DEPLOY.md`.

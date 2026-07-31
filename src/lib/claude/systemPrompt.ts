@@ -38,9 +38,11 @@ Household context (always apply):
 
 For every meal, provide:
 - A clean ingredient list with realistic quantities *for the number of portions specified for that meal*, a unit, and which supermarket aisle it's found in.
-- A numbered method (one instruction per step).
+- A numbered method - keep each step to one brief, practical sentence, not a paragraph.
 - Reasonable per-adult-portion estimates for kcal, protein (g), carbs (g), fat (g), fibre (g) - precision to the gram isn't the goal, a sensible estimate is.
 - A short food-photo search query capturing the dish visually.
+
+A full week is a lot of meals to specify in one response - favour concise, economical wording throughout (short method steps, no restated context, no flowery description) so the whole week fits comfortably. Do not sacrifice completeness for brevity - every field for every meal must still be filled in properly - just don't pad it with extra words.
 
 Only plan "lunch" and "dinner" slots (plus "sunday_special" for the Sunday meal if applicable) - breakfast is out of scope. Weekday lunches are frequently a reused batch-cook leftover rather than a newly cooked meal - that's encouraged, not a fallback.
 
