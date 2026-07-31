@@ -275,7 +275,61 @@ section as the current source of truth) so the two docs don't silently disagree.
 
 ---
 
-## MVP 2 (Phase 2) — Assisted basket-fill
+## MVP 2 — Shopping list, ready to hand to Claude in Chrome
+
+**Status: ⬜ Not started.** **Scope corrected from the version of this section below (kept, struck
+through, for the record) — see `DECISIONS.md`'s "MVP 2 scope correction" entry for the full
+reasoning.** Depends on MVP 1.1's canonical ingredient list — a clean, canonical product name per
+row is exactly what makes the list something Claude in Chrome can search against reliably.
+
+The originally-scoped "assisted basket-fill" build below assumed the app could trigger or drive a
+Claude-in-Chrome session directly. It can't: Claude in Chrome is a browser-side extension with no
+API for a third-party site (like this app) to invoke, and it has no headless mode by design - a
+human is always the one watching and driving it. So there's no automation for this app to build
+here. The actual, much smaller, flow is entirely manual and already 90% built:
+
+1. The user gets the shopping list from the app (MVP1's "copy as plain text" button, already
+   shipped) - MVP 2's job is just making sure that exported text is as easy as possible for an
+   agent to act on, not just for a human reading it on a phone screen.
+2. The user opens Claude in Chrome themselves, on Sainsbury's site, in their own logged-in session,
+   pastes the list, and asks it to add everything to the basket.
+3. Claude in Chrome drives the page itself - asking for confirmation before anything it treats as
+   consequential, and stopping before payment - the user reviews the actual basket and pays
+   themselves.
+
+### Scope for this milestone
+
+- ⬜ Review and tighten the "copy as plain text" shopping-list export for this specific use case:
+  one clean line per item (canonical product name + quantity), formatted for a linear paste-and-go
+  read rather than the aisle-grouped prose that's better suited to a human scanning a phone screen
+  in-store. The on-screen shopping list view keeps its aisle grouping - only the copy/export text
+  changes.
+- ⬜ Add a short, visible in-app note near the shopping list pointing users at the actual workflow
+  above (open Claude in Chrome, paste the list, ask it to add everything to the basket) - this is
+  documentation of an existing manual workflow, not a new feature.
+
+### Explicitly not in scope (see `DECISIONS.md`)
+
+- 🚫 Any server-side or in-app browser automation (Playwright or otherwise) driving Sainsbury's.
+- 🚫 Storing Sainsbury's credentials or a logged-in session anywhere in this app.
+- 🚫 Any attempt to trigger or invoke the Claude in Chrome extension programmatically from the app
+  - there is no such API, and building toward one isn't a small integration away, it's not
+    possible by design.
+- 🚫 Unattended/automated checkout, as already flagged in the "Not planned" section below - still
+  true, and more clearly so now that there's no automation layer here to accidentally extend into it.
+
+### Definition of done for MVP 2
+
+- The shopping-list plain-text export is one clean line per item (canonical name + quantity),
+  reviewed for how easy it is to hand to an agent in one paste
+- A short in-app note near the shopping list explains the Claude-in-Chrome paste-and-go workflow
+- `REQUIREMENTS.md` (this section) and `DECISIONS.md` reflect the corrected scope and the
+  reasoning for it
+- All of this is in a PR from `build/mvp2` into `main`, ready for review and merge
+
+<details>
+<summary>Original MVP 2 scope (superseded - kept for the record, see the scope-correction entry in
+DECISIONS.md)</summary>
 
 **Status: ⬜ Not started.** Per `PROJECT.md` §9. Depends on MVP 1.1's canonical ingredient list —
 matching against Sainsbury's search will be materially more reliable with clean names than with
@@ -290,6 +344,8 @@ A human-in-the-loop flow (browser assistant or a Playwright script the user runs
   completes checkout manually
 - Explicitly **not** in scope: unattended checkout, stored payment credentials, or anything that
   removes the human click before payment (see "Not planned" below)
+
+</details>
 
 ---
 
@@ -313,6 +369,11 @@ Per `PROJECT.md` §9, listed but explicitly deferred — pick up if/when priorit
 - ⬜ Freezer inventory tracking — knowing what's already batch-frozen from a prior week and
   factoring that into future generation (skip re-cooking/re-buying accordingly), deferred from
   MVP 1.2's narrower "suggest doubling the batch" version
+- ⬜ Generation prompt-tuning pass — flagged from live use of MVP 1.2: an adult breakfast appeared
+  when it shouldn't have (adult breakfasts are meant to be entirely out of scope, family-breakfast
+  occasion aside), and kids meals could be more instructive/varied. Both are prompt-following
+  issues to review and tighten in the system prompt, not data-model bugs - explicitly deferred to a
+  future milestone rather than folded into MVP 2's small, unrelated scope
 
 ## Explicitly not planned
 

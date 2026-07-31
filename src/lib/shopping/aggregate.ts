@@ -1,5 +1,5 @@
 import type { Ingredient, UsedInRef } from "@/lib/db/schema";
-import { formatQuantity } from "@/lib/ingredients/format";
+import { formatIngredientAmount } from "@/lib/ingredients/format";
 
 export type MealForAggregation = {
   id: string;
@@ -99,13 +99,13 @@ export function aggregateShoppingList(mealsList: MealForAggregation[]): Aggregat
       if (ingredient.quantity == null) {
         existing.unsummable.push("as needed");
       } else if (existing.quantity == null) {
-        existing.unsummable.push(`${ingredient.quantity}${ingredient.unit ?? ""}`);
+        existing.unsummable.push(formatIngredientAmount(ingredient) ?? "");
       } else {
         const base = toBaseUnit(ingredient.quantity, unit ?? "");
         if (base.unit === existing.unit) {
           existing.quantity += base.quantity;
         } else {
-          existing.unsummable.push(`${ingredient.quantity}${ingredient.unit ?? ""}`);
+          existing.unsummable.push(formatIngredientAmount(ingredient) ?? "");
         }
       }
     }
@@ -114,7 +114,7 @@ export function aggregateShoppingList(mealsList: MealForAggregation[]): Aggregat
   return Array.from(byKey.values())
     .map((item) => {
       const parts: string[] = [];
-      if (item.quantity != null) parts.push(`${formatQuantity(item.quantity)}${item.unit ?? ""}`);
+      if (item.quantity != null) parts.push(formatIngredientAmount({ quantity: item.quantity, unit: item.unit }) ?? "");
       parts.push(...item.unsummable);
 
       return {

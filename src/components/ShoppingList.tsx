@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import type { shoppingItems } from "@/lib/db/schema";
+import { shoppingListAsPlainText } from "@/lib/shopping/exportText";
 
 type ShoppingItem = typeof shoppingItems.$inferSelect;
 
@@ -15,16 +16,6 @@ function groupByAisle(items: ShoppingItem[]) {
   return groups;
 }
 
-function asPlainText(items: ShoppingItem[]) {
-  const groups = groupByAisle(items);
-  return Array.from(groups.entries())
-    .map(([aisle, list]) => {
-      const lines = list.map((i) => `- ${i.productName} (${i.displayQuantity})`).join("\n");
-      return `${aisle}\n${lines}`;
-    })
-    .join("\n\n");
-}
-
 export function ShoppingList({ items: initialItems }: { items: ShoppingItem[] }) {
   const [copied, setCopied] = useState(false);
   // Ticking off items while shopping (MVP 1.1 "must-ship" CX item, see
@@ -34,7 +25,7 @@ export function ShoppingList({ items: initialItems }: { items: ShoppingItem[] })
   const groups = groupByAisle(items);
 
   async function copy() {
-    await navigator.clipboard.writeText(asPlainText(items));
+    await navigator.clipboard.writeText(shoppingListAsPlainText(items));
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
   }
@@ -61,9 +52,16 @@ export function ShoppingList({ items: initialItems }: { items: ShoppingItem[] })
 
   return (
     <div className="space-y-4">
-      <button type="button" onClick={copy} className="btn-secondary w-full">
-        {copied ? "Copied!" : "Copy as plain text"}
-      </button>
+      <div>
+        <button type="button" onClick={copy} className="btn-secondary w-full">
+          {copied ? "Copied!" : "Copy as plain text"}
+        </button>
+        <p className="mt-2 text-xs text-neutral-400">
+          Tip: open Claude in Chrome on Sainsbury&apos;s site, paste this list, and ask it to add
+          everything to your basket - it&apos;ll confirm anything consequential and stop before
+          payment, so you review and pay yourself.
+        </p>
+      </div>
 
       {Array.from(groups.entries()).map(([aisle, list]) => (
         <section key={aisle} className="card p-4">

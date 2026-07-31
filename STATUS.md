@@ -5,13 +5,49 @@ Start here for "where are we" - the other docs are: `PROJECT.md` (original spec)
 (method-step eval rubric/results), `README.md` (local dev), `DEPLOY.md` (deploy steps). This file is
 just the up-to-date summary of where things actually stand.
 
-## MVP 1.2 - shipped, in PR to `main`
+## MVP 2 - shipped, in PR to `main`
+
+Shopping list tightened for handing to Claude in Chrome (`REQUIREMENTS.md`, scope corrected from
+the originally-described "assisted basket-fill build" - see `DECISIONS.md`'s "MVP 2 scope
+correction" entry: there's no API for this app to trigger a Claude in Chrome session, so this
+milestone is a small export-format tweak plus in-app guidance, not an automation feature). Built on
+`build/mvp2` from latest `main` (after MVP 1.2 merged + its two post-merge hotfixes, below).
+
+- The "copy as plain text" shopping-list export (`ShoppingList.tsx`, now backed by
+  `src/lib/shopping/exportText.ts`) is now one flat line per item - `productName - displayQuantity`,
+  sorted alphabetically, no aisle-grouped headers - so a linear paste into an agent's chat is easy
+  to work through item by item. The on-screen view is unchanged and still aisle-grouped for a human
+  shopping in-store.
+- A short tip near the copy button explains the actual workflow: open Claude in Chrome on
+  Sainsbury's site, paste the list, ask it to add everything to the basket - it confirms anything
+  consequential and stops before payment on its own.
+- Bonus fix found while manually verifying the new export: `aggregateShoppingList`'s own quantity
+  formatting had the same "no space between quantity and unit" bug MVP1.1 fixed for recipe
+  ingredient lines (e.g. `3loaf` instead of `3 loaf`) - a second, separate occurrence of the same
+  bug class, now fixed by reusing the same `formatIngredientAmount` helper instead of ad hoc string
+  concatenation.
+- No new schema/migration, no server-side automation, no stored credentials - see `DECISIONS.md`
+  for what was explicitly *not* built and why.
+
+## MVP 1.2 - shipped and merged, plus two post-merge hotfixes
 
 Kids meals, family meal cadence & leftover balance (`REQUIREMENTS.md`), built on `build/mvp1.2`
 from latest `main` (after MVP 1.1 merged). Everything is built and tested (`tsc`, `eslint`,
 `vitest` - 77 tests, `playwright` all green), plus a manual browser pass through Settings, the
 intake form, and the Parents/Kids/Family tabs. No open items this time - unlike MVP 1.1, nothing
 here needed a live `ANTHROPIC_API_KEY` to verify (all mocked-generation + pure-logic coverage).
+
+**Two issues surfaced from real (non-mocked) generation right after merging, both fixed directly on
+`main` - see `DECISIONS.md`'s "Post-merge production hotfixes" entry:**
+- Real generation was failing with "Streaming is required for operations that may take longer than
+  10 minutes" - MVP 1.2's `max_tokens: 28000` raise pushed Claude's own request-time estimate past
+  the Anthropic SDK's non-streaming threshold. Fixed by switching to
+  `client.messages.stream(...).finalMessage()`.
+- `/api/weeks/[weekId]/retry` was missing `maxDuration = 300` entirely (unlike `/api/generate`),
+  so a real retry would have been killed by Vercel's much shorter default duration. Fixed.
+- Neither was caught pre-merge because `MOCK_GENERATION=1` (the only way this build sandbox or the
+  e2e test exercises generation) bypasses the real Anthropic call - same class of gap as MVP1's
+  original `max_tokens` truncation bug.
 
 - **Three family meal occasions** (Saturday breakfast - on but easily skippable, Saturday evening,
   Sunday lunch) replace MVP1's Sunday-only default, editable in Settings and per-week in the intake
@@ -64,7 +100,16 @@ that file for the rubric and full context.
 - **Live app**: Vercel project, deployed from `main`. URL as of last check: `foodplanner-pi.vercel.app` (confirm current one in the Vercel dashboard - custom/preview domains may have changed).
 - **Database**: Vercel Postgres (Neon-backed), linked to the project. Migrations run automatically as part of every Vercel build (`vercel-build` script in `package.json`) - no manual migration step needed, ever, including for future schema changes.
 - **Confirmed by the operator, live, with a real Anthropic key**: login, Settings (household defaults), the full intake → generate → recipes → shopping list → feedback flow.
-- Currently showing `v4` on the login/home pages (see "Version number" below) once this MVP 1.2 PR merges and redeploys - if you see an older number still, it hasn't picked up this push yet.
+- Currently showing `v7` on the login/home pages (see "Version number" below) once this MVP 2 PR merges and redeploys - if you see an older number still, it hasn't picked up this push yet.
+- **Generation is noticeably slower since MVP 1.2, expectedly** - one call now produces the adult
+  track plus a full kids track plus family occasions (roughly 2-3x the meals of a pre-MVP1.2 week),
+  and Claude generates output tokens at a roughly fixed rate, so more content is proportionally more
+  time. Not a bug/regression to chase; if it becomes a real problem, the options are trimming what's
+  generated per call or splitting into separate adult/kids calls (rejected for MVP 1.2, see
+  `DECISIONS.md`, but revisitable).
+- **Kids meals and some prompt-following (e.g. an adult breakfast appearing when it shouldn't) could
+  use a prompt-tuning pass** - flagged by the operator post-MVP1.2, explicitly deferred to a future
+  milestone rather than folded into MVP 2's small scope.
 
 ## What's in the app (v1 scope, per PROJECT.md)
 
