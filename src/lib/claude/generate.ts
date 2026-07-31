@@ -48,20 +48,30 @@ export async function generateWeekPlan(params: {
   // the model can self-correct (see DECISIONS.md on why we still validate
   // server-side even with a forced tool call).
   for (let attempt = 0; attempt < 2; attempt++) {
-    const response = await client.messages.create({
-      model: CLAUDE_MODEL,
-      // A full week's plan (ingredients, method, macros for every meal) is a
-      // lot of structured JSON - 8000 wasn't enough and produced silently
-      // truncated tool input (e.g. missing "days" entirely). Raised to 16000
-      // for the adult-only plan, then to 28000 for MVP 1.2's combined
-      // adult+kids+family generation (roughly double the meal count) - see
-      // DECISIONS.md on why this is one combined call rather than two.
-      max_tokens: 28000,
-      system,
-      messages,
-      tools: [tool],
-      tool_choice: { type: "tool", name: TOOL_NAME },
-    });
+    // Streamed rather than a plain `create()` call - the Anthropic SDK
+    // requires streaming once a request's own estimated duration can exceed
+    // 10 minutes, which the 28000 max_tokens raise (MVP 1.2, for the larger
+    // combined adult+kids+family response) tipped this over into hitting in
+    // production ("Streaming is required for operations that may take
+    // longer than 10 minutes"). `.stream().finalMessage()` waits for the
+    // complete response and returns the same `Message` shape `create()`
+    // would have, so nothing downstream of this needs to change.
+    const response = await client.messages
+      .stream({
+        model: CLAUDE_MODEL,
+        // A full week's plan (ingredients, method, macros for every meal) is a
+        // lot of structured JSON - 8000 wasn't enough and produced silently
+        // truncated tool input (e.g. missing "days" entirely). Raised to 16000
+        // for the adult-only plan, then to 28000 for MVP 1.2's combined
+        // adult+kids+family generation (roughly double the meal count) - see
+        // DECISIONS.md on why this is one combined call rather than two.
+        max_tokens: 28000,
+        system,
+        messages,
+        tools: [tool],
+        tool_choice: { type: "tool", name: TOOL_NAME },
+      })
+      .finalMessage();
 
     const toolUse = response.content.find((block) => block.type === "tool_use");
     if (!toolUse || toolUse.type !== "tool_use") {

@@ -428,6 +428,32 @@ suite) through Settings (family-occasion pickers save and persist across reload)
 recipe view (Parents/Kids/Family tabs correctly filter, the freezer-portions badge renders) -
 per this project's "test UI changes in a browser, don't just claim it works" convention.
 
+## Post-merge production hotfixes (MVP 1.2)
+
+Two issues surfaced from the operator's live testing right after MVP 1.2 merged, both fixed
+directly on `main` (not a branch/PR) given they were actively breaking the live app:
+
+### "Streaming is required for operations that may take longer than 10 minutes"
+
+Real (non-mocked) generation started failing with this Anthropic SDK error the moment MVP 1.2's
+`max_tokens: 28000` (raised from 16000 for the combined adult+kids+family response) went live -
+the SDK requires streaming once a request's own estimated duration can plausibly exceed 10 minutes,
+and evidently this max_tokens value was enough to cross that threshold for a full-week
+adult+kids+family plan. Not caught before merging because `MOCK_GENERATION=1` (used by the e2e test
+and this build sandbox's only way to exercise generation) bypasses the real Anthropic call
+entirely - the same class of gap as MVP1's `max_tokens` truncation bug, which also only ever
+surfaced on the operator's first live call. Fixed by switching `client.messages.create(...)` to
+`client.messages.stream(...).finalMessage()` - same params, same returned `Message` shape, so
+nothing downstream of the API call needed to change; it just waits for the stream to finish instead
+of making a single blocking non-streaming request.
+
+While fixing this, also caught and fixed a related gap: `/api/weeks/[weekId]/retry` (MVP 1.1) never
+had `export const maxDuration = 300` set, unlike `/api/generate` - it runs the exact same
+potentially-long generation call via `after()`, so it would have been capped at Vercel's much
+shorter default duration and killed mid-generation on a real retry. Never caught because the e2e
+test's only retry-adjacent coverage is the mocked unit test
+(`tests/unit/retry-generation.test.ts`), which resolves near-instantly either way.
+
 ## Blocking items surfaced to the operator (not build-blocking, deploy-blocking)
 
 No `ANTHROPIC_API_KEY`, `UNSPLASH_ACCESS_KEY`, or production database credentials are present in this environment — expected, since §11 says these are provided at deploy time, not during the build. The app is built to run fully with local fallbacks (embedded PGlite database, illustrated placeholder images) so the whole flow is testable without any of those secrets; real keys/DB are required only for production deploy and for hitting the live Claude/Unsplash APIs. Documented precisely in `DEPLOY.md`.
