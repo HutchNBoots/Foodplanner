@@ -1,10 +1,23 @@
 import { z } from "zod";
 
+export const PROTEIN_TYPES = [
+  "Chicken",
+  "Beef",
+  "Pork",
+  "Fish & seafood",
+  "Turkey",
+  "Eggs",
+  "Plant-based",
+] as const;
+
 export const weekIntakeSchema = z.object({
   weekStartDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Expected an ISO date (yyyy-mm-dd)."),
   daysMode: z.enum(["full_week", "weekdays_only", "mon_to_sat"]),
   sundayMode: z.enum(["sit_down", "bbq", "skip"]),
   dishStyles: z.array(z.string()).default([]),
+  // Proteins to actually use this week - defaults to all of them (nothing
+  // excluded) if the client ever omits the field.
+  proteins: z.array(z.string()).default([...PROTEIN_TYPES]),
   avoidRepeating: z.array(z.string()).default([]),
   budget: z.string().default(""),
   effort: z.enum(["quick", "mixed", "more_cooking"]),

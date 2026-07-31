@@ -1,6 +1,7 @@
 import type { households } from "@/lib/db/schema";
 import type { WeekIntake } from "@/lib/db/schema";
 import { isWarmMonth } from "@/lib/season";
+import { PROTEIN_TYPES } from "@/lib/intake";
 
 type Household = typeof households.$inferSelect;
 
@@ -63,11 +64,14 @@ export function buildUserPrompt(params: {
         .join("\n")
     : "- No feedback logged yet.";
 
+  const excludedProteins = PROTEIN_TYPES.filter((p) => !intake.proteins.includes(p));
+
   return `Plan the week starting ${weekStartDate}.
 
 Days needed: ${DAYS_MODE_LABEL[intake.daysMode]}.
 Sunday: ${SUNDAY_MODE_LABEL[intake.sundayMode] ?? intake.sundayMode}.
 Preferred dish styles this week: ${intake.dishStyles.length ? intake.dishStyles.join(", ") : "no preference"}.
+Proteins to use this week: ${intake.proteins.length ? intake.proteins.join(", ") : "none specified, use reasonable judgement"}.${excludedProteins.length ? ` Do NOT use these at all this week: ${excludedProteins.join(", ")}.` : ""}
 Effort level: ${EFFORT_LABEL[intake.effort]}.
 Budget for the week: ${intake.budget || "not specified, use reasonable judgement"}.
 ${intake.notes ? `Additional notes from the user: ${intake.notes}` : ""}

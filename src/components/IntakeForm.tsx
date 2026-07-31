@@ -31,18 +31,21 @@ export function IntakeForm({
   recentTitles,
   dishStyles,
   deemphasised,
+  proteinTypes,
 }: {
   defaultWeekStartDate: string;
   defaultSundayMode: SundayMode;
   recentTitles: string[];
   dishStyles: string[];
   deemphasised: string[];
+  proteinTypes: string[];
 }) {
   const router = useRouter();
   const [weekStartDate, setWeekStartDate] = useState(defaultWeekStartDate);
   const [daysMode, setDaysMode] = useState<DaysMode>("full_week");
   const [sundayMode, setSundayMode] = useState<SundayMode>(defaultSundayMode);
   const [selectedStyles, setSelectedStyles] = useState<string[]>([]);
+  const [selectedProteins, setSelectedProteins] = useState<string[]>(proteinTypes);
   const [avoidSelected, setAvoidSelected] = useState<string[]>([]);
   const [avoidCustom, setAvoidCustom] = useState("");
   const [budget, setBudget] = useState("");
@@ -76,6 +79,7 @@ export function IntakeForm({
         daysMode,
         sundayMode,
         dishStyles: selectedStyles,
+        proteins: selectedProteins,
         avoidRepeating,
         budget,
         effort,
@@ -155,6 +159,23 @@ export function IntakeForm({
             (warm-weather default) - pick it anyway if you want it.
           </p>
         )}
+      </section>
+
+      <section className="card p-4">
+        <span className="label">Proteins to use this week</span>
+        <div className="flex flex-wrap gap-2">
+          {proteinTypes.map((protein) => (
+            <PillOption
+              key={protein}
+              label={protein}
+              active={selectedProteins.includes(protein)}
+              onClick={() => toggle(selectedProteins, setSelectedProteins, protein)}
+            />
+          ))}
+        </div>
+        <p className="mt-2 text-xs text-neutral-400">
+          All selected by default - tap one to leave it out entirely this week (e.g. unselect Beef).
+        </p>
       </section>
 
       <section className="card p-4">

@@ -1,5 +1,5 @@
 import { getOrCreateHousehold, getRecentMealTitles } from "@/lib/db/queries";
-import { upcomingMonday } from "@/lib/intake";
+import { PROTEIN_TYPES, upcomingMonday } from "@/lib/intake";
 import { deemphasisedStyles, DISH_STYLES } from "@/lib/season";
 
 export const dynamic = "force-dynamic";
@@ -21,6 +21,7 @@ export default async function NewWeekPage() {
         recentTitles={recentTitles.slice(0, 8)}
         dishStyles={[...DISH_STYLES]}
         deemphasised={deemphasisedStyles()}
+        proteinTypes={[...PROTEIN_TYPES]}
       />
     </div>
   );

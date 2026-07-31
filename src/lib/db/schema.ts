@@ -126,6 +126,7 @@ export type WeekIntake = {
   daysMode: "full_week" | "weekdays_only" | "mon_to_sat";
   sundayMode: "sit_down" | "bbq" | "skip";
   dishStyles: string[];
+  proteins: string[];
   avoidRepeating: string[];
   budget: string;
   effort: "quick" | "mixed" | "more_cooking";

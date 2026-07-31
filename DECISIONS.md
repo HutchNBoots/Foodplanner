@@ -80,6 +80,10 @@ Fixed three ways:
 - Tightened the system prompt to explicitly ask for economical wording (short method steps, no padding) given how much has to fit in one response - reduces the odds of hitting the limit at all, independent of what the limit is set to.
 - Also updated the default model from `claude-sonnet-4-5` to `claude-sonnet-5` (the current recommended default) while making this change, since `ANTHROPIC_MODEL` was never actually exercised against a real key before now either.
 
+### Protein select/unselect added to the intake form
+
+Operator-requested addition, not in the original spec: a "Proteins to use this week" section (Chicken, Beef, Pork, Fish & seafood, Turkey, Eggs, Plant-based), all selected by default, tap to deselect one to exclude it entirely for that week. Threaded through as `intake.proteins: string[]` (the *included* set) alongside the existing `dishStyles` pattern, with the system prompt computing the complement (`PROTEIN_TYPES` minus what's selected) and telling Claude explicitly "Do NOT use these at all this week: X" only when something's actually excluded - keeps the prompt clean when everything's selected (the common case) rather than always listing a redundant full inclusion list.
+
 ## Blocking items surfaced to the operator (not build-blocking, deploy-blocking)
 
 No `ANTHROPIC_API_KEY`, `UNSPLASH_ACCESS_KEY`, or production database credentials are present in this environment — expected, since §11 says these are provided at deploy time, not during the build. The app is built to run fully with local fallbacks (embedded PGlite database, illustrated placeholder images) so the whole flow is testable without any of those secrets; real keys/DB are required only for production deploy and for hitting the live Claude/Unsplash APIs. Documented precisely in `DEPLOY.md`.
