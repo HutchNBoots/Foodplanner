@@ -454,6 +454,59 @@ shorter default duration and killed mid-generation on a real retry. Never caught
 test's only retry-adjacent coverage is the mocked unit test
 (`tests/unit/retry-generation.test.ts`), which resolves near-instantly either way.
 
+## MVP 2 scope correction: no in-app automation, a text-format tweak instead
+
+`REQUIREMENTS.md`'s original MVP 2 section (and `PROJECT.md` §9 before it) described "assisted
+basket-fill" as something this app would build: a flow that searches Sainsbury's for each shopping
+item and adds it to the basket, suggesting either a browser assistant or a Playwright script as the
+mechanism. Operator correction: **Claude in Chrome is a browser-side extension with no API for a
+third-party site to invoke, and no headless mode by design** - a human is always the one watching
+and driving it. There's no "trigger a Claude in Chrome session from the app" integration to build,
+not because it's out of scope by policy, but because it doesn't exist as a capability at all.
+
+The actual flow needs no automation on this app's side: the user already gets a canonical,
+quantity-totalled shopping list (MVP1's "copy as plain text" button, sharpened by MVP 1.1's
+canonical ingredient table); they open Claude in Chrome themselves, in their own logged-in
+Sainsbury's session, paste that list, and ask it to add everything to the basket - Claude in Chrome
+handles confirmation prompts and stops before payment on its own, same as it would for anything
+else consequential it's asked to do in a browser. This app's only real job is making that pasted
+text as easy as possible for an agent to act on.
+
+**Revised MVP 2 scope**: tighten the plain-text shopping-list export for this specific handoff (one
+line per item, canonical name + quantity, no aisle-grouped prose - see the next entry), and add a
+short in-app note pointing at the actual workflow. That's the whole milestone. The original section
+is kept in `REQUIREMENTS.md`, collapsed and struck through, rather than deleted outright, so the
+history of what was originally scoped and why it changed isn't lost.
+
+**Confirms**, rather than changes, the "Explicitly not planned" section already in
+`REQUIREMENTS.md`: unattended/automated checkout was already out of scope; this correction just
+means there's no automation layer here at all to accidentally extend toward it later.
+
+### Shopping-list plain-text export: flat, one line per item, no aisle headers
+
+The on-screen shopping list view keeps its aisle grouping - genuinely useful for a human physically
+walking a store. The **plain-text export** (`asPlainText` in `ShoppingList.tsx`, now
+`shoppingListAsPlainText` in `src/lib/shopping/exportText.ts` for testability) drops that grouping
+and the `"- "` bullet/aisle-header prose entirely: one line per item, `productName - displayQuantity`,
+sorted alphabetically by name. An agent working through the list to search-and-add each item on a
+retailer's site has no use for "which physical aisle is this in" - that's a human-in-a-shop concept
+- and a flat list is strictly easier to parse line-by-line than nested grouping headers mixed in
+with item lines. Sorting alphabetically (rather than preserving aggregation order) just keeps the
+output deterministic and easy to visually scan/diff, independent of aisle categorisation.
+
+### Bonus find while manually verifying the export: quantity/unit spacing bug, again
+
+Manually testing the new export in a browser (`3loaf`, `2800g`, `32tbsp` in the clipboard output)
+turned up the same "no space between quantity and unit" bug MVP1.1 fixed for recipe ingredient
+lines (`IngredientLine`/`formatIngredientAmount`) - except this was a second, separate occurrence
+of the identical bug in `aggregateShoppingList`'s own quantity-formatting (`displayQuantity` on the
+shopping list, built independently with its own string concatenation rather than reusing
+`formatIngredientAmount`). Since this directly affects the very text this milestone is tightening,
+fixed it in the same pass: `aggregate.ts` now calls the existing `formatIngredientAmount` helper
+instead of its own ad hoc `${quantity}${unit}` concatenation, for both the summed-quantity case and
+the unsummable/mismatched-units fallback strings. One existing unit test asserted the old,
+unspaced `"2tbsp"` output and was updated to `"2 tbsp"`.
+
 ## Blocking items surfaced to the operator (not build-blocking, deploy-blocking)
 
 No `ANTHROPIC_API_KEY`, `UNSPLASH_ACCESS_KEY`, or production database credentials are present in this environment — expected, since §11 says these are provided at deploy time, not during the build. The app is built to run fully with local fallbacks (embedded PGlite database, illustrated placeholder images) so the whole flow is testable without any of those secrets; real keys/DB are required only for production deploy and for hitting the live Claude/Unsplash APIs. Documented precisely in `DEPLOY.md`.
