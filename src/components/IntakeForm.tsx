@@ -4,7 +4,8 @@ import { useRouter } from "next/navigation";
 import { useState } from "react";
 
 type DaysMode = "full_week" | "weekdays_only" | "mon_to_sat";
-type SundayMode = "sit_down" | "bbq" | "skip";
+type SatBreakfastMode = "sit_down" | "skip";
+type OccasionMode = "sit_down" | "bbq" | "skip";
 type Effort = "quick" | "mixed" | "more_cooking";
 
 const DAYS_OPTIONS: { value: DaysMode; label: string }[] = [
@@ -13,7 +14,21 @@ const DAYS_OPTIONS: { value: DaysMode; label: string }[] = [
   { value: "mon_to_sat", label: "Mon-Sat" },
 ];
 
-const SUNDAY_OPTIONS: { value: SundayMode; label: string }[] = [
+// Saturday breakfast has no "bbq" option (a BBQ breakfast doesn't make
+// sense) - the other two family occasions keep the full set, same as MVP1's
+// Sunday mode (see DECISIONS.md).
+const SAT_BREAKFAST_OPTIONS: { value: SatBreakfastMode; label: string }[] = [
+  { value: "sit_down", label: "Sit-down breakfast" },
+  { value: "skip", label: "Skip this week" },
+];
+
+const EVENING_OPTIONS: { value: OccasionMode; label: string }[] = [
+  { value: "sit_down", label: "Sit-down dinner" },
+  { value: "bbq", label: "BBQ" },
+  { value: "skip", label: "Skip this week" },
+];
+
+const SUN_LUNCH_OPTIONS: { value: OccasionMode; label: string }[] = [
   { value: "sit_down", label: "Sit-down lunch" },
   { value: "bbq", label: "BBQ" },
   { value: "skip", label: "Skip this week" },
@@ -27,7 +42,9 @@ const EFFORT_OPTIONS: { value: Effort; label: string }[] = [
 
 export function IntakeForm({
   defaultWeekStartDate,
-  defaultSundayMode,
+  defaultSatBreakfastMode,
+  defaultSatEveningMode,
+  defaultSunLunchMode,
   defaultBudget,
   recentTitles,
   dishStyles,
@@ -35,7 +52,9 @@ export function IntakeForm({
   proteinTypes,
 }: {
   defaultWeekStartDate: string;
-  defaultSundayMode: SundayMode;
+  defaultSatBreakfastMode: SatBreakfastMode;
+  defaultSatEveningMode: OccasionMode;
+  defaultSunLunchMode: OccasionMode;
   defaultBudget: string;
   recentTitles: string[];
   dishStyles: string[];
@@ -45,7 +64,11 @@ export function IntakeForm({
   const router = useRouter();
   const [weekStartDate, setWeekStartDate] = useState(defaultWeekStartDate);
   const [daysMode, setDaysMode] = useState<DaysMode>("full_week");
-  const [sundayMode, setSundayMode] = useState<SundayMode>(defaultSundayMode);
+  // The three family meal occasions (MVP 1.2, see DECISIONS.md) - replaces
+  // MVP1's single Sunday-mode picker.
+  const [satBreakfast, setSatBreakfast] = useState<SatBreakfastMode>(defaultSatBreakfastMode);
+  const [satEvening, setSatEvening] = useState<OccasionMode>(defaultSatEveningMode);
+  const [sunLunch, setSunLunch] = useState<OccasionMode>(defaultSunLunchMode);
   const [selectedStyles, setSelectedStyles] = useState<string[]>([]);
   const [selectedProteins, setSelectedProteins] = useState<string[]>(proteinTypes);
   const [avoidSelected, setAvoidSelected] = useState<string[]>([]);
@@ -82,7 +105,7 @@ export function IntakeForm({
       body: JSON.stringify({
         weekStartDate,
         daysMode,
-        sundayMode,
+        familyMeals: { satBreakfast, satEvening, sunLunch },
         dishStyles: selectedStyles,
         proteins: selectedProteins,
         avoidRepeating,
@@ -131,17 +154,46 @@ export function IntakeForm({
         </div>
       </section>
 
-      <section className="card p-4">
-        <span className="label">Sunday</span>
-        <div className="flex flex-wrap gap-2">
-          {SUNDAY_OPTIONS.map((opt) => (
-            <PillOption
-              key={opt.value}
-              label={opt.label}
-              active={sundayMode === opt.value}
-              onClick={() => setSundayMode(opt.value)}
-            />
-          ))}
+      <section className="card space-y-4 p-4">
+        <span className="label">Family meals this week</span>
+        <div>
+          <p className="mb-1.5 text-sm text-neutral-600">Saturday breakfast</p>
+          <div className="flex flex-wrap gap-2">
+            {SAT_BREAKFAST_OPTIONS.map((opt) => (
+              <PillOption
+                key={opt.value}
+                label={opt.label}
+                active={satBreakfast === opt.value}
+                onClick={() => setSatBreakfast(opt.value)}
+              />
+            ))}
+          </div>
+        </div>
+        <div>
+          <p className="mb-1.5 text-sm text-neutral-600">Saturday evening</p>
+          <div className="flex flex-wrap gap-2">
+            {EVENING_OPTIONS.map((opt) => (
+              <PillOption
+                key={opt.value}
+                label={opt.label}
+                active={satEvening === opt.value}
+                onClick={() => setSatEvening(opt.value)}
+              />
+            ))}
+          </div>
+        </div>
+        <div>
+          <p className="mb-1.5 text-sm text-neutral-600">Sunday lunch</p>
+          <div className="flex flex-wrap gap-2">
+            {SUN_LUNCH_OPTIONS.map((opt) => (
+              <PillOption
+                key={opt.value}
+                label={opt.label}
+                active={sunLunch === opt.value}
+                onClick={() => setSunLunch(opt.value)}
+              />
+            ))}
+          </div>
         </div>
       </section>
 
