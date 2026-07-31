@@ -12,11 +12,11 @@ Copy-paste steps to get Foodplanner live on **Vercel** - app and database both, 
 ## 1. Import the project into Vercel
 
 1. In Vercel, **Add New Project** → import this GitHub repo. Framework preset auto-detects as Next.js - leave build/output settings default.
-2. Don't deploy yet - add the database and env vars first (steps below), so the first deploy already has everything it needs.
+2. Let this first deploy actually run. It won't be usable yet (no database or API key attached), and that's fine - **Vercel only lets you attach Storage to a project that already has a deployment**, so this deploy's only job is to make the project exist. Don't worry about its build/runtime state yet.
 
 ## 2. Add Vercel Postgres
 
-1. In the project, go to **Storage** → **Create Database** → **Postgres** (this provisions a Neon-backed Postgres instance, fully managed by Vercel - no separate account or dashboard).
+1. Now that the project exists, go to its **Storage** tab → **Create Database** → **Postgres** (this provisions a Neon-backed Postgres instance, fully managed by Vercel - no separate account or dashboard). If you don't see a **Storage** tab, look for **Marketplace** instead and search "Postgres" there - Vercel has moved this around between account types/versions, but it ends the same way.
 2. Connect it to the project when prompted. Vercel automatically adds a `DATABASE_URL` environment variable (plus a few Postgres-specific variants) to the project - **you don't need to copy/paste a connection string yourself**.
 3. Pick the same region as your Vercel deployment (or close to it) when creating the database, to keep query latency low.
 
@@ -48,9 +48,9 @@ The database starts empty - the app's tables need to exist before the first real
 
 You should see `Migrations complete.` This creates the `households`, `weeks`, `meals`, `feedback`, and `shopping_items` tables. Re-run this same command (with the same `DATABASE_URL`) any time the schema changes in the future (i.e. after pulling a change that touches `src/lib/db/schema.ts` and includes a new file under `src/db/migrations/`).
 
-## 5. Deploy
+## 5. Redeploy
 
-Trigger the deploy (push to `main`, or click Deploy in the Vercel dashboard). Vercel builds with `next build` and serves it - no other configuration needed (there's no `vercel.json`; defaults are fine for this app).
+The placeholder deploy from step 1 ran before any of the env vars in step 3 (or `DATABASE_URL` from step 2) existed - environment variable changes only apply to deployments made *after* they're set. Trigger a fresh one now: **Deployments** tab → **...** on the latest deployment → **Redeploy**, or just push any commit to `main`. Vercel builds with `next build` and serves it - no other configuration needed (there's no `vercel.json`; defaults are fine for this app).
 
 ## 6. Verify it worked
 
