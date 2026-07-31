@@ -44,3 +44,15 @@ describe("buildSystemPrompt method-step instructions", () => {
     expect(prompt.toLowerCase()).toContain("concise");
   });
 });
+
+// Regression: a real MVP 1.2 generation came back with two meals with empty
+// ingredients arrays (violating the schema's ingredients.min(1)), and a
+// single retry didn't fix it - see DECISIONS.md's post-MVP1.2 hotfix entry.
+// The system prompt now states this as a hard rule up front rather than
+// relying solely on the retry loop to catch it after the fact.
+describe("buildSystemPrompt ingredients-never-empty rule", () => {
+  it("states that every meal's ingredients list must have at least one entry", () => {
+    const prompt = buildSystemPrompt(baseHousehold());
+    expect(prompt).toContain("never emit an empty list");
+  });
+});

@@ -44,10 +44,14 @@ export async function generateWeekPlan(params: {
 
   let lastError = "";
 
-  // Try twice: once plain, once more with the validation error appended so
-  // the model can self-correct (see DECISIONS.md on why we still validate
-  // server-side even with a forced tool call).
-  for (let attempt = 0; attempt < 2; attempt++) {
+  // Try up to 3 times: once plain, then with the validation error appended
+  // each time so the model can self-correct (see DECISIONS.md on why we
+  // still validate server-side even with a forced tool call). Raised from 2
+  // after a real MVP 1.2 failure showed a single retry wasn't reliably
+  // enough - the much larger combined adult+kids+family response gives more
+  // surface area for an isolated slip (e.g. one meal's ingredients array
+  // coming back empty) to survive one correction attempt.
+  for (let attempt = 0; attempt < 3; attempt++) {
     // Streamed rather than a plain `create()` call - the Anthropic SDK
     // requires streaming once a request's own estimated duration can exceed
     // 10 minutes, which the 28000 max_tokens raise (MVP 1.2, for the larger

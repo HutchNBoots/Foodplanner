@@ -454,6 +454,35 @@ shorter default duration and killed mid-generation on a real retry. Never caught
 test's only retry-adjacent coverage is the mocked unit test
 (`tests/unit/retry-generation.test.ts`), which resolves near-instantly either way.
 
+## Post-merge hotfix (MVP 2 era): empty ingredients array surviving a retry
+
+A real generation call failed hard with a Zod error at two separate paths
+(`days[3].meals[0].ingredients`, `days[5].meals[1].ingredients`) - both meals came back with a
+completely empty `ingredients` array, violating the schema's `ingredients.min(1)`. The existing
+retry loop (MVP1: try once, feed the exact Zod error back, try again) didn't produce a valid plan
+even after the correction attempt - the much larger MVP 1.2 combined adult+kids+family response
+(~25-30 meals per call, versus ~10-14 pre-MVP1.2) simply gives more surface area for an isolated
+slip like this to occur, and Anthropic's forced tool-use decoding doesn't strongly enforce numeric
+array-length constraints like `minItems` the way it enforces structural/type constraints (see the
+existing "forced tool-use, not prompt-only JSON" entry above on why server-side Zod validation
+exists at all) - so the schema alone was never going to reliably prevent this, only catch it.
+
+Two changes, both small and low-risk:
+- **The system prompt now states the rule explicitly, up front**: "every meal's ingredients list
+  must have at least one entry - never emit an empty list, even for the simplest meal", with a
+  concrete example (a "toast" or "cereal" breakfast still lists its ingredients). Preventive,
+  rather than relying solely on the retry loop to catch it after the fact.
+- **Retry attempts raised from 2 to 3.** One extra attempt only costs anything when validation
+  actually fails (not on the happy path), and gives the model more chances to self-correct against
+  a response this much larger than what the original 2-attempt budget was sized for.
+
+Test coverage: a new assertion in `tests/unit/system-prompt-method-steps.test.ts` pins the new
+prompt sentence so it can't be silently dropped in a future prompt edit. Not adding a live-generation
+regression test for the empty-array failure itself, consistent with this project's established
+gap here (MOCK_GENERATION bypasses the real Anthropic call entirely, so this whole class of "does
+the real model actually follow this instruction" question isn't something automated tests in this
+sandbox can answer - same reasoning as the method-step eval in `EVALS.md`).
+
 ## MVP 2 scope correction: no in-app automation, a text-format tweak instead
 
 `REQUIREMENTS.md`'s original MVP 2 section (and `PROJECT.md` §9 before it) described "assisted

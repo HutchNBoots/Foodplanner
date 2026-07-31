@@ -5,7 +5,16 @@ Start here for "where are we" - the other docs are: `PROJECT.md` (original spec)
 (method-step eval rubric/results), `README.md` (local dev), `DEPLOY.md` (deploy steps). This file is
 just the up-to-date summary of where things actually stand.
 
-## MVP 2 - shipped, in PR to `main`
+## Post-MVP2 hotfix: empty ingredients array surviving a retry
+
+A real generation call hit a hard failure - two meals came back with empty `ingredients` arrays
+(schema requires at least one), and it survived the existing one-retry correction loop. Fixed by
+(a) the system prompt now states "never emit an empty ingredients list" as an explicit up-front
+rule instead of relying solely on the retry to catch it, and (b) retry attempts raised from 2 to 3.
+See `DECISIONS.md`'s "Post-merge hotfix (MVP 2 era)" entry. Pushed directly to `main` given it was
+an active generation failure, same as the MVP 1.2 streaming/maxDuration hotfixes.
+
+## MVP 2 - shipped and merged
 
 Shopping list tightened for handing to Claude in Chrome (`REQUIREMENTS.md`, scope corrected from
 the originally-described "assisted basket-fill build" - see `DECISIONS.md`'s "MVP 2 scope
@@ -100,7 +109,7 @@ that file for the rubric and full context.
 - **Live app**: Vercel project, deployed from `main`. URL as of last check: `foodplanner-pi.vercel.app` (confirm current one in the Vercel dashboard - custom/preview domains may have changed).
 - **Database**: Vercel Postgres (Neon-backed), linked to the project. Migrations run automatically as part of every Vercel build (`vercel-build` script in `package.json`) - no manual migration step needed, ever, including for future schema changes.
 - **Confirmed by the operator, live, with a real Anthropic key**: login, Settings (household defaults), the full intake → generate → recipes → shopping list → feedback flow.
-- Currently showing `v7` on the login/home pages (see "Version number" below) once this MVP 2 PR merges and redeploys - if you see an older number still, it hasn't picked up this push yet.
+- Currently showing `v8` on the login/home pages (see "Version number" below) once this hotfix redeploys - if you see an older number still, it hasn't picked up this push yet.
 - **Generation is noticeably slower since MVP 1.2, expectedly** - one call now produces the adult
   track plus a full kids track plus family occasions (roughly 2-3x the meals of a pre-MVP1.2 week),
   and Claude generates output tokens at a roughly fixed rate, so more content is proportionally more
