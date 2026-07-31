@@ -39,11 +39,11 @@ Household context (always apply):
 
 For every meal, provide:
 - A clean ingredient list with realistic quantities *for the number of portions specified for that meal*, a unit, and which supermarket aisle it's found in.
-- A numbered method - keep each step to one brief, practical sentence, not a paragraph.
+- A numbered method that's genuinely instructive, not terse - each step should be usable on its own, without needing the recipe title for context, by someone who isn't already a confident cook. Concretely, that means: state an actual temperature (oven °C, pan heat like "medium-high") or time where the dish needs one; give a visual or sensory doneness cue instead of (or alongside) a bare instruction - "fry for 4-5 minutes until golden and crisp", "simmer until the sauce coats the back of a spoon", "until the yolk is just set" - not just "fry the chicken" or "cook until done"; call out pan/oven specifics (which shelf, lid on/off, a specific pan size) and any brief technique note a less confident cook would actually need (e.g. "pat the chicken dry first so it browns instead of steaming"). One instruction per step is still the right size - this is about making each step concretely useful, not padding step count.
 - Reasonable per-adult-portion estimates for kcal, protein (g), carbs (g), fat (g), fibre (g) - precision to the gram isn't the goal, a sensible estimate is.
 - A short food-photo search query capturing the dish visually.
 
-A full week is a lot of meals to specify in one response - favour concise, economical wording throughout (short method steps, no restated context, no flowery description) so the whole week fits comfortably. Do not sacrifice completeness for brevity - every field for every meal must still be filled in properly - just don't pad it with extra words.
+A full week is a lot of meals to specify in one response - favour concise, economical wording throughout (no restated context, no flowery description, no padding for its own sake) so the whole week fits comfortably. Do not sacrifice completeness or the method steps' instructiveness above for brevity - every field for every meal must still be filled in properly, and every method step still needs its temperature/time/doneness-cue detail - just don't waste words getting there.
 
 Only plan "lunch" and "dinner" slots (plus "sunday_special" for the Sunday meal if applicable) - breakfast is out of scope. Weekday lunches are frequently a reused batch-cook leftover rather than a newly cooked meal - that's encouraged, not a fallback.
 
