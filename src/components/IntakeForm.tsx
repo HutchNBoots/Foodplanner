@@ -28,6 +28,7 @@ const EFFORT_OPTIONS: { value: Effort; label: string }[] = [
 export function IntakeForm({
   defaultWeekStartDate,
   defaultSundayMode,
+  defaultBudget,
   recentTitles,
   dishStyles,
   deemphasised,
@@ -35,6 +36,7 @@ export function IntakeForm({
 }: {
   defaultWeekStartDate: string;
   defaultSundayMode: SundayMode;
+  defaultBudget: string;
   recentTitles: string[];
   dishStyles: string[];
   deemphasised: string[];
@@ -48,7 +50,10 @@ export function IntakeForm({
   const [selectedProteins, setSelectedProteins] = useState<string[]>(proteinTypes);
   const [avoidSelected, setAvoidSelected] = useState<string[]>([]);
   const [avoidCustom, setAvoidCustom] = useState("");
-  const [budget, setBudget] = useState("");
+  // Pre-filled from household settings (MVP 1.1, see DECISIONS.md's "Intake
+  // form prefill" entry) but fully overridable per week, same as every other
+  // field here.
+  const [budget, setBudget] = useState(defaultBudget);
   const [effort, setEffort] = useState<Effort>("mixed");
   const [notes, setNotes] = useState("");
   const [submitting, setSubmitting] = useState(false);

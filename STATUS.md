@@ -1,13 +1,43 @@
 # Current status (read this first in a new chat)
 
-Start here for "where are we" - the other docs are: `PROJECT.md` (original spec), `DECISIONS.md` (full decision-by-decision log with reasoning), `README.md` (local dev), `DEPLOY.md` (deploy steps). This file is just the up-to-date summary of where things actually stand.
+Start here for "where are we" - the other docs are: `PROJECT.md` (original spec), `REQUIREMENTS.md`
+(MVP-by-MVP breakdown), `DECISIONS.md` (full decision-by-decision log with reasoning), `EVALS.md`
+(method-step eval rubric/results), `README.md` (local dev), `DEPLOY.md` (deploy steps). This file is
+just the up-to-date summary of where things actually stand.
+
+## MVP 1.1 - shipped, one item needs the operator to finish it
+
+Consistency/CX milestone (`REQUIREMENTS.md`), built on `claude/build-mvp1-1-pq3e0l`
+(session-runner-assigned branch - supersedes `REQUIREMENTS.md`'s suggested `build/mvp1.1` name, same
+situation MVP1 hit, see `DECISIONS.md`). Everything is built and tested (`tsc`, `eslint`, `vitest`,
+`playwright` all green) **except one item that needs a real Anthropic key, which this build session
+doesn't have**:
+
+- Canonical ingredients table (`ingredients_canonical`) - auto-built/grown, fuzzy-matched at
+  generation time, so ingredient names are consistent and shopping-list aisle grouping is more
+  reliable. Old weeks are untouched/still render fine.
+- Ingredient line rendering fixed (bold amount+unit + space + name) - was the "4whole eggs" bug.
+- History page duplicate-date bug fixed - `createdAt` is now a tiebreaker everywhere weeks are
+  ordered, and shown in the History list itself.
+- Failed generations can now be retried in place (same week id, same stored intake) instead of
+  restarting the whole intake form.
+- Week-level nutrition summary (daily/weekly kcal+protein) on the recipe view.
+- Shopping-list checklist (tick items off while shopping), persisted server-side.
+- Intake form now pre-fills budget from household settings (was silently ignored before).
+- Method-step generation prompt updated to ask for temperatures, doneness cues, technique notes.
+
+**Still open**: the method-step eval requires generating 5+ real recipes through a live Claude call
+and scoring them - this sandbox has no `ANTHROPIC_API_KEY` (same gap MVP1 hit with
+`UNSPLASH_ACCESS_KEY`/its first live-generation test). Run `ANTHROPIC_API_KEY=... npx tsx
+scripts/eval-method-steps.ts` once and paste the results into `EVALS.md`'s "Results" section - see
+that file for the rubric and full context.
 
 ## Deployed and confirmed working
 
 - **Live app**: Vercel project, deployed from `main`. URL as of last check: `foodplanner-pi.vercel.app` (confirm current one in the Vercel dashboard - custom/preview domains may have changed).
 - **Database**: Vercel Postgres (Neon-backed), linked to the project. Migrations run automatically as part of every Vercel build (`vercel-build` script in `package.json`) - no manual migration step needed, ever, including for future schema changes.
 - **Confirmed by the operator, live, with a real Anthropic key**: login, Settings (household defaults), the full intake → generate → recipes → shopping list → feedback flow.
-- Currently showing `v2` on the login/home pages (see "Version number" below) - if you don't see that on the live app, it means it hasn't been redeployed since the last push yet.
+- Currently showing `v3` on the login/home pages (see "Version number" below) once this MVP 1.1 PR merges and redeploys - if you see `v2` still, it hasn't picked up this push yet.
 
 ## What's in the app (v1 scope, per PROJECT.md)
 
@@ -33,5 +63,8 @@ Weekly intake form (days needed, Sunday mode, dish styles, **protein select/unse
 
 ## Workflow notes for continuing in a new chat
 
-- All work happens directly on `main` - no feature branches, per explicit operator instruction (see DECISIONS.md's "Branching" entry). The `claude/project-file-setup-8e1k5n` branch is kept in sync alongside it but `main` is what Vercel deploys from.
+- MVP1 was built directly on `main` (no feature branches, per explicit operator instruction at the
+  time - see DECISIONS.md's "Branching" entry). Starting with MVP 1.1, work goes on a session-runner-
+  assigned branch and merges via PR instead (per `REQUIREMENTS.md`'s stated workflow) - check
+  `DECISIONS.md`'s MVP 1.1 "Branching" entry for the exact branch name in use.
 - Run `npx tsc --noEmit`, `npx eslint .`, `npx vitest run`, and `npx playwright test` before pushing - all four should stay green (they are as of this commit).

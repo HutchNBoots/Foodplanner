@@ -1,4 +1,4 @@
-import { pgTable, text, integer, real, jsonb } from "drizzle-orm/pg-core";
+import { pgTable, text, integer, real, jsonb, boolean } from "drizzle-orm/pg-core";
 
 const id = () =>
   text("id")
@@ -102,6 +102,24 @@ export const shoppingItems = pgTable("shopping_items", {
   displayQuantity: text("display_quantity").notNull(),
   aisle: text("aisle").notNull(),
   usedInJson: jsonb("used_in_json").notNull().$type<UsedInRef[]>(),
+  /** Ticked off while actually shopping (MVP 1.1) - persisted server-side, not
+   * client-only, so it survives a phone/laptop switch mid-shop. */
+  checked: boolean("checked").notNull().default(false),
+  createdAt: createdAt(),
+});
+
+/** The "cupboard list" (MVP 1.1, see DECISIONS.md): canonical ingredient
+ * names/aisles, auto-built and deduplicated from what generations actually
+ * produce over time rather than seeded upfront. New ingredient names are
+ * fuzzy-matched against this table before a new row is created (see
+ * `src/lib/ingredients/match.ts`) so e.g. "cherry tomato" and "cherry
+ * tomatoes" collapse to one entry. Global, not per-household - v1 is a
+ * single household anyway, and a shared product catalogue is the right
+ * shape even if multi-household support (PROJECT.md §9 backlog) ever lands. */
+export const ingredientsCanonical = pgTable("ingredients_canonical", {
+  id: id(),
+  name: text("name").notNull(),
+  aisle: text("aisle").notNull(),
   createdAt: createdAt(),
 });
 
@@ -112,6 +130,10 @@ export type Ingredient = {
   quantity: number | null;
   unit: string | null;
   aisle: string;
+  /** Links to `ingredientsCanonical.id` once resolved at persist time (MVP 1.1).
+   * Null for weeks generated before this table existed, or if resolution is
+   * ever skipped - rendering never requires this field, only `name`. */
+  canonicalIngredientId?: string | null;
 };
 
 export type LeftoverRef = { day: string; slot: string };

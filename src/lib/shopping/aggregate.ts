@@ -1,4 +1,5 @@
 import type { Ingredient, UsedInRef } from "@/lib/db/schema";
+import { formatQuantity } from "@/lib/ingredients/format";
 
 export type MealForAggregation = {
   id: string;
@@ -54,10 +55,6 @@ function toBaseUnit(quantity: number, unit: string): { quantity: number; unit: s
   if (unit === "kg") return { quantity: quantity * 1000, unit: "g" };
   if (unit === "l") return { quantity: quantity * 1000, unit: "ml" };
   return { quantity, unit };
-}
-
-function formatQuantity(quantity: number): string {
-  return Number.isInteger(quantity) ? String(quantity) : quantity.toFixed(1).replace(/\.0$/, "");
 }
 
 /** Deterministically aggregates ingredients across a week's meals into a

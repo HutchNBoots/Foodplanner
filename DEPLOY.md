@@ -57,3 +57,18 @@ Change `APP_PASSWORD` in Vercel's env vars and redeploy (or just wait for the ne
 ## If Unsplash rate-limits or you remove the key later
 
 No code changes needed - `UNSPLASH_ACCESS_KEY` is checked per-request at generation time. Meals generated while the key was working keep their cached real photo forever (never re-fetched); meals generated without a working key get a local illustrated placeholder instead. Nothing breaks either way.
+
+## One follow-up from MVP 1.1: run the method-step eval once
+
+The build session for MVP 1.1 had no `ANTHROPIC_API_KEY` to test against, so the "more instructive
+method steps" prompt change is untested against a real generation. Once you have a working key
+(locally, with it set in your shell, or anywhere with `ANTHROPIC_API_KEY` set and network access to
+`api.anthropic.com`), run:
+
+```
+ANTHROPIC_API_KEY=sk-ant-... npx tsx scripts/eval-method-steps.ts
+```
+
+and paste the printed table into `EVALS.md`'s "Results" section (see that file for the rubric).
+This doesn't block using the app - it's just closing out the one MVP 1.1 checklist item that needed
+a real key to verify.

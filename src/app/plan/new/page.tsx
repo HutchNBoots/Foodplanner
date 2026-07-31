@@ -18,6 +18,7 @@ export default async function NewWeekPage() {
       <IntakeForm
         defaultWeekStartDate={upcomingMonday()}
         defaultSundayMode={household.sundayDefaultMode as "sit_down" | "bbq" | "skip"}
+        defaultBudget={household.budgetDefault ?? ""}
         recentTitles={recentTitles.slice(0, 8)}
         dishStyles={[...DISH_STYLES]}
         deemphasised={deemphasisedStyles()}

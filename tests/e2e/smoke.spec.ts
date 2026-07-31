@@ -42,4 +42,12 @@ test("full flow: login -> intake -> generate (mocked) -> recipes -> shopping lis
   await expect(page.getByRole("heading", { name: "Meat & fish" })).toBeVisible();
   await expect(page.getByText("chicken breast")).toBeVisible();
   await expect(page.getByRole("button", { name: "Copy as plain text" })).toBeVisible();
+
+  // Checklist behaviour: ticking an item persists (survives a reload), per
+  // MVP 1.1's "must-ship" shopping-list checklist requirement.
+  const chickenCheckbox = page.getByRole("checkbox").first();
+  await chickenCheckbox.check();
+  await expect(chickenCheckbox).toBeChecked();
+  await page.reload();
+  await expect(page.getByRole("checkbox").first()).toBeChecked();
 });
