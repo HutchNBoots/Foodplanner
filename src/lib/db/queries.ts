@@ -61,7 +61,7 @@ export async function getRecentMealTitles(householdId: string, weeksBack = 3) {
     .select({ id: weeks.id })
     .from(weeks)
     .where(and(eq(weeks.householdId, householdId), eq(weeks.status, "ready")))
-    .orderBy(desc(weeks.weekStartDate))
+    .orderBy(desc(weeks.weekStartDate), desc(weeks.createdAt))
     .limit(weeksBack);
 
   if (recentWeeks.length === 0) return [];
@@ -114,6 +114,25 @@ export async function setWeekError(weekId: string, message: string) {
   await db.update(weeks).set({ status: "error", errorMessage: message }).where(eq(weeks.id, weekId));
 }
 
+export async function getWeekById(weekId: string) {
+  const [week] = await db.select().from(weeks).where(eq(weeks.id, weekId));
+  return week ?? null;
+}
+
+/** Resets a failed week back to "generating" so it can be retried in place
+ * (MVP 1.1 bug fix - see DECISIONS.md's "Retry design") - reuses the
+ * existing week row/id instead of creating a new one, so a retry doesn't
+ * also add another same-date row to History. Also clears any meals/shopping
+ * items that might exist from a partially-persisted prior attempt (normally
+ * none, since a failed generation throws before any meal rows are inserted -
+ * but cheap defensive cleanup against a partial-write edge case, given the
+ * Neon HTTP driver doesn't support transactions, see DECISIONS.md). */
+export async function resetWeekForRetry(weekId: string) {
+  await db.delete(meals).where(eq(meals.weekId, weekId));
+  await db.delete(shoppingItems).where(eq(shoppingItems.weekId, weekId));
+  await db.update(weeks).set({ status: "generating", errorMessage: null }).where(eq(weeks.id, weekId));
+}
+
 export async function finalizeWeek(
   weekId: string,
   planJson: unknown,
@@ -160,12 +179,19 @@ export async function getWeekDetail(weekId: string) {
   return { week, meals: weekMeals, shoppingItems: items, feedback: mealFeedback };
 }
 
+// Every list/latest query below orders by `weekStartDate` first (so History
+// reads chronologically) with `createdAt` as a tiebreaker (see DECISIONS.md's
+// "History page / duplicate-date bug: root cause") - two attempts at the
+// same week (a retry, or just not editing the date field) share a
+// `weekStartDate`, and without a tiebreaker the DB can return same-date rows
+// in an arbitrary order instead of true recency.
+
 export async function listWeeks(householdId: string, limit = 12) {
   return db
     .select()
     .from(weeks)
     .where(eq(weeks.householdId, householdId))
-    .orderBy(desc(weeks.weekStartDate))
+    .orderBy(desc(weeks.weekStartDate), desc(weeks.createdAt))
     .limit(limit);
 }
 
@@ -174,7 +200,7 @@ export async function getLatestReadyWeek(householdId: string) {
     .select()
     .from(weeks)
     .where(and(eq(weeks.householdId, householdId), eq(weeks.status, "ready")))
-    .orderBy(desc(weeks.weekStartDate))
+    .orderBy(desc(weeks.weekStartDate), desc(weeks.createdAt))
     .limit(1);
   return week ?? null;
 }
@@ -184,7 +210,7 @@ export async function getLatestWeek(householdId: string) {
     .select()
     .from(weeks)
     .where(eq(weeks.householdId, householdId))
-    .orderBy(desc(weeks.weekStartDate))
+    .orderBy(desc(weeks.weekStartDate), desc(weeks.createdAt))
     .limit(1);
   return week ?? null;
 }
@@ -207,6 +233,18 @@ export async function setMealImage(
     .update(meals)
     .set({ imageUrl: image.url, imageSource: image.source, imageCreditJson: image.credit ?? null })
     .where(eq(meals.id, mealId));
+}
+
+/** Ticking items off while shopping (MVP 1.1 "must-ship" CX item, see
+ * DECISIONS.md) - persisted server-side so it survives a phone/laptop
+ * switch mid-shop, not just client-only state. */
+export async function setShoppingItemChecked(itemId: string, checked: boolean) {
+  const updated = await db
+    .update(shoppingItems)
+    .set({ checked })
+    .where(eq(shoppingItems.id, itemId))
+    .returning();
+  return updated[0] ?? null;
 }
 
 export type { Ingredient, LeftoverRef, UsedInRef };

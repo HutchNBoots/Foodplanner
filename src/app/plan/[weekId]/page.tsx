@@ -4,6 +4,8 @@ import { getWeekDetail } from "@/lib/db/queries";
 import { GeneratingStatus } from "@/components/GeneratingStatus";
 import { WeekTabs } from "@/components/WeekTabs";
 import { MealCard } from "@/components/MealCard";
+import { RetryGenerationButton } from "@/components/RetryGenerationButton";
+import { WeekNutritionSummary } from "@/components/WeekNutritionSummary";
 
 export const dynamic = "force-dynamic";
 
@@ -22,10 +24,15 @@ export default async function WeekPlanPage({ params }: { params: Promise<{ weekI
     return (
       <div className="py-16 text-center">
         <p className="font-medium text-red-700">Generation failed</p>
-        <p className="mt-1 text-sm text-neutral-500">{week.errorMessage}</p>
-        <Link href="/plan/new" className="btn-primary mt-6 inline-flex">
-          Try again
-        </Link>
+        <p className="mt-1 text-sm text-neutral-500">
+          {week.errorMessage ?? "Something went wrong and no reason was recorded."}
+        </p>
+        <div className="mt-6 flex flex-col items-center gap-3">
+          <RetryGenerationButton weekId={weekId} />
+          <Link href="/plan/new" className="text-sm text-neutral-500 underline">
+            Start a new week instead
+          </Link>
+        </div>
       </div>
     );
   }
@@ -46,6 +53,10 @@ export default async function WeekPlanPage({ params }: { params: Promise<{ weekI
     <div>
       <WeekTabs weekId={weekId} active="recipes" />
       <h1 className="text-xl font-semibold">Week of {week.weekStartDate}</h1>
+
+      <div className="mt-4">
+        <WeekNutritionSummary meals={meals} />
+      </div>
 
       <div className="mt-4 space-y-6">
         {Array.from(byDay.entries()).map(([date, dayMeals]) => (

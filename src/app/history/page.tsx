@@ -9,6 +9,17 @@ const STATUS_LABEL: Record<string, string> = {
   error: "Failed",
 };
 
+// Several attempts can share the exact same `weekStartDate` (a retry, or the
+// intake form's date field just wasn't changed) - showing when each attempt
+// was actually generated is what makes otherwise-identical rows tell apart
+// (see DECISIONS.md's "History page / duplicate-date bug" entry).
+const GENERATED_AT_FORMAT = new Intl.DateTimeFormat("en-GB", {
+  day: "numeric",
+  month: "short",
+  hour: "2-digit",
+  minute: "2-digit",
+});
+
 export default async function HistoryPage() {
   const household = await getOrCreateHousehold();
   const weeks = await listWeeks(household.id);
@@ -23,7 +34,12 @@ export default async function HistoryPage() {
           {weeks.map((week) => (
             <li key={week.id}>
               <Link href={`/plan/${week.id}`} className="card flex items-center justify-between p-4">
-                <span className="font-medium">Week of {week.weekStartDate}</span>
+                <div>
+                  <span className="font-medium">Week of {week.weekStartDate}</span>
+                  <p className="text-xs text-neutral-400">
+                    Generated {GENERATED_AT_FORMAT.format(new Date(week.createdAt))}
+                  </p>
+                </div>
                 <span
                   className={`text-sm ${
                     week.status === "ready"
