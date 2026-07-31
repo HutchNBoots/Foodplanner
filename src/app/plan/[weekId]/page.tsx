@@ -3,9 +3,10 @@ import { notFound } from "next/navigation";
 import { getWeekDetail } from "@/lib/db/queries";
 import { GeneratingStatus } from "@/components/GeneratingStatus";
 import { WeekTabs } from "@/components/WeekTabs";
-import { MealCard } from "@/components/MealCard";
+import { MealTrackTabs } from "@/components/MealTrackTabs";
 import { RetryGenerationButton } from "@/components/RetryGenerationButton";
 import { WeekNutritionSummary } from "@/components/WeekNutritionSummary";
+import { trackForMeal } from "@/lib/meals/track";
 
 export const dynamic = "force-dynamic";
 
@@ -37,17 +38,16 @@ export default async function WeekPlanPage({ params }: { params: Promise<{ weekI
     );
   }
 
-  const byDay = new Map<string, typeof meals>();
-  for (const meal of meals) {
-    const list = byDay.get(meal.dayDate) ?? [];
-    list.push(meal);
-    byDay.set(meal.dayDate, list);
-  }
-
   const latestFeedbackByMeal = new Map<string, string>();
   for (const fb of feedback) {
     latestFeedbackByMeal.set(fb.mealId, fb.rating);
   }
+
+  // Week nutrition (MVP 1.1) is scoped to adult+family meals only (MVP 1.2) -
+  // kids-track macros reflect balanced kid-portion nutrition, not the adult
+  // deficit/high-protein framing, so mixing them into one "week nutrition"
+  // total would misrepresent both (see DECISIONS.md).
+  const nutritionMeals = meals.filter((meal) => trackForMeal(meal) !== "kids");
 
   return (
     <div>
@@ -55,26 +55,11 @@ export default async function WeekPlanPage({ params }: { params: Promise<{ weekI
       <h1 className="text-xl font-semibold">Week of {week.weekStartDate}</h1>
 
       <div className="mt-4">
-        <WeekNutritionSummary meals={meals} />
+        <WeekNutritionSummary meals={nutritionMeals} />
       </div>
 
-      <div className="mt-4 space-y-6">
-        {Array.from(byDay.entries()).map(([date, dayMeals]) => (
-          <section key={date}>
-            <h2 className="mb-2 text-sm font-semibold uppercase tracking-wide text-neutral-500">
-              {dayMeals[0]?.dayOfWeek} · {date}
-            </h2>
-            <div className="space-y-3">
-              {dayMeals.map((meal) => (
-                <MealCard
-                  key={meal.id}
-                  meal={meal}
-                  feedbackRating={latestFeedbackByMeal.get(meal.id) ?? null}
-                />
-              ))}
-            </div>
-          </section>
-        ))}
+      <div className="mt-4">
+        <MealTrackTabs meals={meals} feedbackByMeal={latestFeedbackByMeal} />
       </div>
     </div>
   );

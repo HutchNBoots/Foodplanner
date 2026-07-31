@@ -6,8 +6,11 @@ import { IngredientLine } from "./IngredientLine";
 type Meal = typeof meals.$inferSelect;
 
 const SLOT_LABEL: Record<string, string> = {
+  breakfast: "Breakfast",
   lunch: "Lunch",
   dinner: "Dinner",
+  // Legacy value from before MVP 1.2 - old weeks still hold this literal
+  // string in the `slot` column (see DECISIONS.md), kept renderable here.
   sunday_special: "Sunday",
 };
 
@@ -24,6 +27,7 @@ export function MealCard({ meal, feedbackRating }: { meal: Meal; feedbackRating:
             {meal.leftoverForJson?.length
               ? ` · saved for ${meal.leftoverForJson.map((l) => `${l.day} ${SLOT_LABEL[l.slot] ?? l.slot}`).join(", ")}`
               : ""}
+            {meal.freezerPortions ? ` · ${meal.freezerPortions} frozen for later` : ""}
           </span>
         )}
       </div>
