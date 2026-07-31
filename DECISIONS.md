@@ -84,6 +84,171 @@ Fixed three ways:
 
 Operator-requested addition, not in the original spec: a "Proteins to use this week" section (Chicken, Beef, Pork, Fish & seafood, Turkey, Eggs, Plant-based), all selected by default, tap to deselect one to exclude it entirely for that week. Threaded through as `intake.proteins: string[]` (the *included* set) alongside the existing `dishStyles` pattern, with the system prompt computing the complement (`PROTEIN_TYPES` minus what's selected) and telling Claude explicitly "Do NOT use these at all this week: X" only when something's actually excluded - keeps the prompt clean when everything's selected (the common case) rather than always listing a redundant full inclusion list.
 
+## MVP 1.1 — Consistency, instructive recipes & CX polish
+
+Scoped from `REQUIREMENTS.md`'s MVP 1.1 section (live-app review feedback, 2026-08-03 build). Same
+working style as MVP1 (§10): brainstorm before building where a decision is left open, build,
+test, document, PR — no direct pings unless something actually blocks.
+
+### Branching (again supersedes REQUIREMENTS.md's suggested name)
+
+`REQUIREMENTS.md` says branch as `build/mvp1.1`. The session runner that actually started this work
+assigned a specific branch (`claude/build-mvp1-1-pq3e0l`) instead, the same situation MVP1 hit with
+`build/v1` vs. the runner-assigned `claude/project-file-setup-8e1k5n` (see the "Branching" entry
+above). Same resolution: the runner's assigned branch is what's actually checked out and is what
+CI/the PR will run against, so that's what's used - not a meaningful deviation from intent, just
+following the literal branch that exists.
+
+### Ingredient canonicalisation: auto-built and grown, not seeded upfront
+
+`REQUIREMENTS.md` explicitly leaves this open ("let Claude Code decide"). Two options considered:
+
+1. **Seed upfront with a curated common-ingredients list, then grow.** Pro: guarantees good coverage
+   and sensible default aisles for the obvious staples from day one. Con: a personal single-household
+   app's actual ingredient vocabulary is whatever *this* household's generations produce - a curated
+   seed list is a guess at that vocabulary, will inevitably miss real generated names anyway (Claude
+   isn't constrained to only ever emit seeded names), and needs the exact same fuzzy-match/create-on-miss
+   logic to handle the misses. It adds a maintenance surface (a hand-written list to keep in sync)
+   for a benefit that mostly evaporates once the real dedup logic exists.
+2. **Auto-built and deduplicated from what generations actually produce over time.** Every new
+   ingredient name is fuzzy-matched against the canonical table; a match reuses the canonical row
+   (name + aisle), a miss inserts a new canonical row (first-seen name/aisle become canonical). Pro:
+   the table converges on exactly the vocabulary this household's plans actually use, with zero
+   upfront curation effort, and the required fuzzy-match/dedup logic (needed regardless, per the
+   "cherry tomato vs cherry tomatoes" requirement) is the entire mechanism - no separate seed-data
+   path to keep working. Con: the first few weeks after shipping have a smaller table, so the first
+   occurrence of any ingredient always creates a new row - not a real cost, since that's true on
+   week one *of the seeded approach too* for anything not in the seed list.
+
+**Decision: auto-built and grown (option 2).** It's strictly simpler (one mechanism, not two) and
+better fits a single-household app where "the canonical list" should just *be* this household's
+real ingredient vocabulary, not a generic supermarket catalogue. Implementation: `ingredients_canonical`
+table (id, name, aisle, created_at), resolved once per generation (batched across the whole week's
+ingredients, not per-meal) in `src/lib/ingredients/resolve.ts`, using pure matching logic in
+`src/lib/ingredients/match.ts` (normalisation + token-singularisation + Levenshtein-ratio fallback,
+threshold-gated so real different ingredients like "chicken breast"/"chicken thigh" don't collapse).
+Matched/created canonical names overwrite the per-meal `ingredients[].name` before the week is
+persisted, so both the `meals` table and the derived `shopping_items` aggregation get the canonical
+name - shopping-list aisle-grouping benefits automatically, per the requirement, without extra work.
+`canonicalIngredientId` is stored alongside each ingredient (nullable) as the concrete "clean,
+searchable product name" hook `PROJECT.md` §9 flags for Phase 2, but rendering never requires it -
+old weeks (pre-dating this table) simply have `canonicalIngredientId: null` and render their frozen
+free-text `name` exactly as before, per the "don't backfill old weeks" requirement.
+
+### History page / duplicate-date bug: root cause
+
+Investigated the reported bug ("History shows the same date for every entry, six rows deep, mixing
+Failed/Ready"). The intake form's week-start date defaults to `upcomingMonday()` and is edited by
+hand only if the user changes it - so repeated attempts on the same day (including retries after a
+failed generation, before this milestone's real retry existed) naturally produce several `weeks` rows
+sharing an identical `week_start_date`. That's not itself invalid data - two attempts *can* legitimately
+target the same week - but every query that lists/orders weeks (`listWeeks`, `getRecentMealTitles`,
+`getLatestWeek`, `getLatestReadyWeek`) ordered **only** by `weekStartDate`, with no tiebreaker. Rows
+with an identical date then come back in whatever order the database happens to return them (not
+necessarily insertion order), which is exactly "looks the same, order looks wrong" - and since
+`getRecentMealTitles` feeds the intake form's "avoid repeating" pre-fill, a wrong tiebreak order there
+means the "recent" list isn't reliably showing the *actually* most recent meals, matching the
+suspicion raised in `REQUIREMENTS.md`.
+
+**Fix**: added `desc(weeks.createdAt)` as a secondary sort key everywhere `weeks` is ordered by
+`weekStartDate`, so ties resolve to true recency. Also surfaced `createdAt` (as a short relative/time
+label) in the History list UI itself, so a human looking at several same-date rows can now tell them
+apart at a glance instead of just the previous bare date. Regression test: two weeks inserted with an
+identical `weekStartDate` but different `createdAt` must come back newest-`createdAt`-first.
+
+### Retry design (bug: silent Failed state)
+
+The per-week detail page already showed `week.errorMessage` and a "Try again" link - but that link
+went to `/plan/new`, i.e. a full fresh intake form, discarding the original answers. Added
+`POST /api/weeks/[weekId]/retry`: validates the week is `status: "error"`, re-runs the exact same
+generation pipeline against the week's already-stored `intakeJson` (same `after()`-backgrounded
+pattern as `/api/generate`), and updates the *existing* week row in place (reset to `generating`,
+clear `errorMessage`) rather than creating a new one - this also means retries no longer add to the
+duplicate-date pile the History fix above addresses. The error page keeps a secondary "Start a new
+week instead" link for when the user actually wants to change something, and the retry button
+transitions the page straight to the existing `GeneratingStatus` polling view.
+
+### Week nutrition summary: per-day totals + week average, not a chart
+
+`REQUIREMENTS.md` asks for "daily/weekly kcal & protein totals... at a glance". Considered a small
+bar chart (one bar per day) vs. a plain numeric summary. Went with a plain numeric card (week total,
+per-day average, and a compact per-day breakdown list) - the ask is "can I tell if this week is
+roughly on target", which numbers answer directly, and a chart is more visual weight than five to
+seven numbers need for a personal app read on a phone. Pure calculation lives in
+`src/lib/nutrition/summary.ts` (day-grouped sums of the already-stored per-adult-portion macros +
+a week/day average), unit-tested independently of any rendering.
+
+### Shopping list checklist: persisted server-side, not localStorage
+
+Ticking items off needs to survive a phone/laptop switch mid-shop (the same cross-device requirement
+`PROJECT.md` §7 already resolved against plain `localStorage` for the whole data model) - so checked
+state is a new `checked` boolean column on `shopping_items`, toggled via
+`PATCH /api/shopping-items/[itemId]`, not client-only state.
+
+### Method steps: prompt change only, live eval blocked on a missing key (same as MVP1's Unsplash/live-generation gaps)
+
+Updated `buildSystemPrompt`'s method-step instructions to explicitly ask for temperatures, pan/oven
+specifics, and a visual/sensory doneness cue per step where relevant, aiming for steps that stand
+alone without the recipe title - directly per the requirement. Wrote `scripts/eval-method-steps.ts`,
+a standalone script that calls the real `generateWeekPlan` pipeline, flattens every meal's method
+steps, and scores each against the rubric (temperature/time mentioned where the dish needs it, at
+least one sensory/visual cue per step where relevant, no unstated-technique assumptions - the first
+two are checked with pattern-matching, the third is flagged for human read-through since it's a
+judgement call no regex can make safely) - see `EVALS.md` for the rubric and the mechanics.
+
+**This sandbox has no `ANTHROPIC_API_KEY`** (confirmed via `env`, consistent with the "Blocking items
+surfaced to the operator" note below from MVP1 - same gap, same reason: keys are provided at deploy
+time per `PROJECT.md` §11, not present during the build session). The script was exercised end-to-end
+against `MOCK_GENERATION=1` to prove it runs, parses, and scores correctly - that is **not** the
+required real eval (the mock's method steps are intentionally minimal placeholder text and will fail
+the rubric, which is expected/correct behaviour for a mock, not a finding about real generations).
+Per MVP1's own precedent (documented below as "not build-blocking, deploy-blocking"), this is flagged
+rather than halting the whole milestone: **the operator needs to run
+`ANTHROPIC_API_KEY=... npx tsx scripts/eval-method-steps.ts` once against a real key and record the
+output in `EVALS.md`** before this specific DoD bullet ("method steps... pass the eval... with the
+rubric + results recorded") is fully closed out. Everything else in this milestone does not depend on
+this and is finished/tested independently.
+
+### CX judgment calls (`REQUIREMENTS.md` §4, "Claude Code's call")
+
+- **"This Week" landing page feels thin** - **shipped, lightly.** When the latest week is `ready`,
+  the home card now also shows the plan's one-line `summary` (already generated and stored in
+  `planJson`, previously unused on this page) and direct links into Recipes/Shopping instead of a
+  single link to the recipe view. Deferred to backlog: a fuller "today's meals" day-by-day dashboard
+  view - genuinely more valuable but a materially bigger scope addition (needs "what day is it
+  within this plan" logic, its own layout) than fits alongside everything else in this milestone;
+  noted in `REQUIREMENTS.md`'s backlog spirit rather than invented as a new requirement here.
+- **Loading/generation state** - **shipped, lightly.** `GeneratingStatus` now shows an elapsed-time
+  counter and a slightly more descriptive line, so a long wait reads as "still working, N seconds
+  in" rather than a static spinner. Deferred: true step-by-step progress ("generating recipes...
+  optimising shopping list...") - the server doesn't currently emit intermediate progress events
+  during the single Claude call + image-resolution pass, and fabricating step labels on a timer
+  without the backend actually being at that step would be a misleading UI, not a CX improvement.
+  Doing this properly needs the generation pipeline to persist/stream real phase markers, which is
+  a backend change bigger than this milestone's remaining scope - backlog candidate.
+- **Version label ("v2") visible on the household/home page** - **kept as-is, decision: intentional,
+  not a debug leftover.** `STATUS.md` already documents the operator relying on this exact number to
+  visually confirm a deploy picked up new code ("Manually bumped by one on every deploy-bound
+  change"). That's a real, currently-used purpose, not an accidental leftover - moving it to a
+  buried footer/about page would remove the at-a-glance value it's actually serving. No code change;
+  documenting the intent here so it doesn't get flagged as a stray debug artifact again.
+
+### Intake form prefill: budget only, by design
+
+`REQUIREMENTS.md` asks to prefill "adult count, Sunday headcount, budget default, store" from
+settings. Of those, only **budget** and **Sunday mode** are actually intake-form fields - adult
+count, Sunday headcount, and store were never asked in the intake form to begin with (`PROJECT.md`
+§4's intake question list doesn't include them; they're applied automatically to every generation
+via the system prompt from the household row, per `systemPrompt.ts`). Sunday mode was already
+defaulted from `household.sundayDefaultMode` (see `plan/new/page.tsx`). **Budget was the actual gap**
+- the form hardcoded `useState("")` instead of reading `household.budgetDefault`, so the intake form
+silently ignored a setting whose entire purpose is to avoid re-typing it weekly. Fixed by threading
+`household.budgetDefault` into the form as `defaultBudget`, kept fully overridable per week exactly
+as the requirement asks. Not treating adults/kids/store as something to newly add as intake fields -
+that would be a scope expansion into "per-week household-size override", which isn't in the
+requirement's ask (it only asks to *prefill from* settings, not make settings fields *editable a
+second time* per-week) and isn't something the operator flagged as missing in the live-app review.
+
 ## Blocking items surfaced to the operator (not build-blocking, deploy-blocking)
 
 No `ANTHROPIC_API_KEY`, `UNSPLASH_ACCESS_KEY`, or production database credentials are present in this environment — expected, since §11 says these are provided at deploy time, not during the build. The app is built to run fully with local fallbacks (embedded PGlite database, illustrated placeholder images) so the whole flow is testable without any of those secrets; real keys/DB are required only for production deploy and for hitting the live Claude/Unsplash APIs. Documented precisely in `DEPLOY.md`.
