@@ -1,6 +1,7 @@
 import type { meals } from "@/lib/db/schema";
 import { RecipePhoto } from "./RecipePhoto";
 import { FeedbackControls } from "./FeedbackControls";
+import { IngredientLine } from "./IngredientLine";
 
 type Meal = typeof meals.$inferSelect;
 
@@ -51,8 +52,7 @@ export function MealCard({ meal, feedbackRating }: { meal: Meal; feedbackRating:
         <ul className="mt-2 space-y-1 text-neutral-600">
           {meal.ingredientsJson.map((ing, i) => (
             <li key={i}>
-              {ing.quantity != null ? `${ing.quantity}${ing.unit ?? ""} ` : ""}
-              {ing.name}
+              <IngredientLine ingredient={ing} />
             </li>
           ))}
         </ul>
