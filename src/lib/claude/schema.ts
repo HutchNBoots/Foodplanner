@@ -27,25 +27,40 @@ export const macrosSchema = z.object({
 
 export const leftoverForSchema = z.object({
   day: z.string().describe("Day name this leftover is eaten on, e.g. 'Wednesday'."),
-  slot: z.enum(["lunch", "dinner", "sunday_special"]),
+  slot: z.enum(["breakfast", "lunch", "dinner"]),
 });
 
 export const mealSchema = z.object({
-  slot: z.enum(["lunch", "dinner", "sunday_special"]),
+  slot: z.enum(["breakfast", "lunch", "dinner"]),
+  /** Whose meal this is (MVP 1.2, see DECISIONS.md) - "adult" for the
+   * standing adult plan, "kids" for the separate Mon-Sat kids track, "family"
+   * for the three shared family occasions (Saturday breakfast/evening,
+   * Sunday lunch). Powers the Parents/Kids/Family recipe-view tabs. */
+  track: z.enum(["adult", "kids", "family"]),
   title: z.string(),
   servingsAdults: z.number().int().min(0),
   servingsKids: z.number().int().min(0),
   ingredients: z.array(ingredientSchema).min(1),
   method: z.array(z.string()).min(1).describe("Numbered method steps, one instruction per array entry."),
-  macrosPerAdultPortion: macrosSchema,
+  macrosPerAdultPortion: macrosSchema.describe(
+    "Per-portion macro estimate for whoever eats this meal - an adult portion for 'adult'/'family' meals, a kid portion for 'kids' meals (kids meals should reflect balanced age-appropriate nutrition, not the adult deficit/high-protein framing).",
+  ),
   photoQuery: z.string().describe("2-4 word food-photo search query representing this dish, e.g. 'grilled chicken tray bake'."),
   batchCook: z
     .object({
-      makes: z.number().int().min(1).describe("Total portions this recipe makes."),
-      leftoverFor: z.array(leftoverForSchema),
+      makes: z.number().int().min(1).describe("Total portions this recipe makes - size ingredient quantities to cover this many portions, including any being frozen (see freezerPortions)."),
+      leftoverFor: z
+        .array(leftoverForSchema)
+        .describe("Same-week day/slots that eat this batch's leftovers instead of a freshly-cooked meal. Counts toward the household's weekly leftover cap (max 2 across the whole plan) - do not exceed it."),
+      freezerPortions: z
+        .number()
+        .int()
+        .min(0)
+        .nullable()
+        .describe("Portions of this batch being frozen for a future week (not eaten this week, not in leftoverFor). Null/0 if nothing is being frozen."),
     })
     .nullable()
-    .describe("Set when this meal is cooked in bulk and reused later in the week; otherwise null."),
+    .describe("Set when this meal is cooked in bulk and reused later in the week and/or frozen; otherwise null."),
 });
 
 export const dayPlanSchema = z.object({
@@ -71,4 +86,17 @@ export function weekPlanToolInputSchema() {
   const schema = z.toJSONSchema(weekPlanSchema, { target: "draft-7" }) as Record<string, unknown>;
   delete schema.$schema;
   return schema;
+}
+
+export const MAX_LEFTOVER_SLOTS = 2;
+
+/** Counts leftover meal-slots across the whole plan (adult + kids + family
+ * tracks combined, per the requirement) - MVP 1.2's weekly leftover cap, see
+ * DECISIONS.md for why `batchCook.leftoverFor.length` is exactly the right
+ * thing to count. */
+export function countLeftoverSlots(plan: WeekPlan): number {
+  return plan.days.reduce(
+    (sum, day) => sum + day.meals.reduce((s, meal) => s + (meal.batchCook?.leftoverFor.length ?? 0), 0),
+    0,
+  );
 }

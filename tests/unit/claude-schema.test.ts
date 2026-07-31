@@ -1,6 +1,9 @@
 import { describe, expect, it } from "vitest";
 import { weekPlanSchema, weekPlanToolInputSchema } from "@/lib/claude/schema";
 import { buildMockWeekPlan } from "@/lib/claude/mock";
+import type { FamilyMeals } from "@/lib/db/schema";
+
+const allSitDown: FamilyMeals = { satBreakfast: "sit_down", satEvening: "sit_down", sunLunch: "sit_down" };
 
 const validPlan = {
   summary: "A varied week of high-protein meals.",
@@ -11,6 +14,7 @@ const validPlan = {
       meals: [
         {
           slot: "dinner",
+          track: "adult",
           title: "Chicken tray bake",
           servingsAdults: 2,
           servingsKids: 0,
@@ -68,17 +72,21 @@ describe("weekPlanSchema", () => {
 describe("buildMockWeekPlan", () => {
   it("produces output that validates against weekPlanSchema for every daysMode", () => {
     for (const daysMode of ["full_week", "weekdays_only", "mon_to_sat"] as const) {
-      const plan = buildMockWeekPlan({ weekStartDate: "2026-08-03", daysMode });
+      const plan = buildMockWeekPlan({ weekStartDate: "2026-08-03", daysMode, familyMeals: allSitDown });
       const result = weekPlanSchema.safeParse(plan);
       expect(result.success).toBe(true);
     }
   });
 
   it("produces the correct number of days for each mode", () => {
-    expect(buildMockWeekPlan({ weekStartDate: "2026-08-03", daysMode: "full_week" }).days).toHaveLength(7);
     expect(
-      buildMockWeekPlan({ weekStartDate: "2026-08-03", daysMode: "weekdays_only" }).days,
+      buildMockWeekPlan({ weekStartDate: "2026-08-03", daysMode: "full_week", familyMeals: allSitDown }).days,
+    ).toHaveLength(7);
+    expect(
+      buildMockWeekPlan({ weekStartDate: "2026-08-03", daysMode: "weekdays_only", familyMeals: allSitDown }).days,
     ).toHaveLength(5);
-    expect(buildMockWeekPlan({ weekStartDate: "2026-08-03", daysMode: "mon_to_sat" }).days).toHaveLength(6);
+    expect(
+      buildMockWeekPlan({ weekStartDate: "2026-08-03", daysMode: "mon_to_sat", familyMeals: allSitDown }).days,
+    ).toHaveLength(6);
   });
 });

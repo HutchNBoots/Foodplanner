@@ -6,7 +6,7 @@ import type { WeekIntake } from "@/lib/db/schema";
 function baseIntake(overrides: Partial<WeekIntake> = {}): WeekIntake {
   return {
     daysMode: "full_week",
-    sundayMode: "sit_down",
+    familyMeals: { satBreakfast: "sit_down", satEvening: "sit_down", sunLunch: "sit_down" },
     dishStyles: [],
     proteins: [...PROTEIN_TYPES],
     avoidRepeating: [],
