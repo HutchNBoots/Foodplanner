@@ -181,6 +181,95 @@ own read of effort vs. value, as long as the reasoning goes in `DECISIONS.md`.
 
 ---
 
+## MVP 1.2 — Kids meals, family meal cadence & leftover balance
+
+**Status: ⬜ Not started.** Scoped from further live-use feedback, after MVP 1.1 was kicked off.
+Depends on MVP 1.1's canonical ingredient list (kids meals need to draw from the same list, not a
+separate free-text set — see below).
+
+**Branch:** `build/mvp1.2`, PR into `main` when done.
+
+This section **updates two defaults from `PROJECT.md`** and should be treated as superseding them:
+
+- `PROJECT.md` §3 said kids "join for a Sunday lunch or BBQ" — that's now **three** family
+  occasions by default: **Saturday breakfast, Saturday evening dinner, and Sunday lunch**, all
+  editable per week (not hardcoded), same as the existing Sunday-headcount setting. Saturday
+  breakfast is the newest and most tentative of the three — a more relaxed, sit-down family
+  breakfast, since weekday mornings don't allow for it. It should default to **on but easily
+  skippable**, since it's the softest of the three occasions.
+- **Every other breakfast (Mon–Fri, and any day it isn't explicitly a family occasion) stays
+  simple, quick, and eaten separately** — adults and kids each get their own straightforward
+  breakfast, not a shared sit-down meal. Don't let the new family-breakfast concept bleed into
+  making weekday breakfasts more elaborate or "family-style" by default; the whole point is that
+  time doesn't allow for that Mon–Fri.
+- `PROJECT.md` §4's intake question "Sunday: sit-down lunch, BBQ, or skip" needs to become a
+  broader "family meals this week" section covering all three occasions, not just Sunday.
+
+Claude Code should update `PROJECT.md` §3/§4 to reflect this (or add a short note pointing to this
+section as the current source of truth) so the two docs don't silently disagree.
+
+### 1. Cap on leftover/batch-cook meals per week
+
+- ⬜ Across the **whole household plan combined** (adults + kids together, not tracked separately),
+  no more than **2 meal-slots per week** should be "leftovers from an earlier batch-cook." Batch
+  cooking itself is still encouraged (cooking once, portioning for the freezer — see kids meals
+  below) — the limit is specifically on *same-week reheated leftovers* appearing on the plan, which
+  was happening too often.
+- ⬜ This needs to be an actual constraint in the generation prompt/logic, not just a hope — and
+  ideally validated after generation (if the model still schedules 3+ leftover slots, that's a
+  validation failure worth retrying on, similar to the existing Zod-validation retry).
+
+### 2. Kids meals (new)
+
+- ⬜ Plan all three kids meals Mon–Sat (breakfast, lunch, dinner) — not just dinner. This roughly
+  doubles the size of a typical week's generated output; if that pushes into `max_tokens` or cost
+  territory worth worrying about (see the MVP1 🟡 cost item), Claude Code's call whether to keep it
+  as one combined generation call or split adult/kids into separate calls — document the choice.
+- ⬜ Kids meals should be **simple, often repeatable, and skew toward batch-cook-and-freeze** —
+  e.g. pasta with pesto, freezer-friendly bakes/traybakes. Some repetition week to week is fine and
+  expected for kids' food (this is different from the adult plan's "vary week to week" rule) —
+  don't apply the adult anti-repeat logic to the kids track.
+- ⬜ Kids meals should **not** carry the adult plan's calorie-deficit/high-protein framing — plan
+  for balanced, age-appropriate nutrition instead. The macro-per-portion display (kcal/protein/
+  carbs/fat/fibre) can stay for consistency, but the generation prompt shouldn't be optimising kids'
+  portions toward a deficit.
+- ⬜ Kids meal ingredients must be **sourced from the same canonical ingredients list** as the adult
+  plan (MVP 1.1), not a separate free-text set — the shopping list stays **one consolidated list**
+  for the whole household, aisle-grouped, with each ingredient's "used in" cross-reference now
+  potentially spanning adult, kids, and family meals together.
+- ⬜ "Bulk cook and freeze" for kids meals is scoped narrowly for this milestone: a recipe can
+  suggest doubling the batch and freezing the surplus, and the shopping list should reflect the
+  doubled quantity where that's suggested. Actually *tracking* what's already sitting in the freezer
+  from a previous week's batch (and skipping re-cooking/re-buying accordingly) is **out of scope**
+  for MVP 1.2 — flag it to the backlog list below rather than building it now.
+
+### 3. Recipe view: Parents / Kids / Family tabs
+
+- ⬜ Add tabs (or an equivalent filter) to the recipe view: **Parents**, **Kids**, **Family** — so
+  the three meal tracks (adult Mon–Sat, kids Mon–Sat, the Saturday-evening/Sunday-lunch family
+  meals) are easy to navigate separately rather than one long mixed list.
+- ⬜ The shopping list stays unified across all three tabs (see above) — the tabs are a
+  recipe-browsing convenience, not separate plans with separate lists.
+
+### Definition of done for MVP 1.2
+
+- No more than 2 leftover/batch-cook meal-slots appear across the whole week's plan (adults + kids
+  combined), enforced in generation and checked after generation, with test coverage
+- Kids meals are generated for all three meals, Mon–Sat, pulled from the canonical ingredient list,
+  without adult-style deficit framing or the adult anti-repeat constraint
+- Family meal cadence defaults to Saturday breakfast (on but skippable), Saturday evening dinner,
+  and Sunday lunch, all editable per week; regular Mon–Fri (and non-family-occasion) breakfasts
+  stay simple and separate for adults/kids, not sit-down family meals; `PROJECT.md` §3/§4 updated
+  (or annotated) to match
+- Recipe view has working Parents / Kids / Family tabs; shopping list remains one consolidated,
+  aisle-grouped, cross-referenced list across all three
+- Freezer-batch suggestions are reflected in shopping-list quantities where a recipe doubles a
+  batch; freezer-inventory tracking is explicitly logged as deferred to backlog, not silently
+  dropped
+- All of this is in a PR from `build/mvp1.2` into `main`, ready for review and merge
+
+---
+
 ## MVP 2 (Phase 2) — Assisted basket-fill
 
 **Status: ⬜ Not started.** Per `PROJECT.md` §9. Depends on MVP 1.1's canonical ingredient list —
@@ -216,6 +305,9 @@ Per `PROJECT.md` §9, listed but explicitly deferred — pick up if/when priorit
 - ⬜ Multi-household / multi-user support
 - ⬜ Push notifications / reminders (e.g. "start Monday's batch cook")
 - ⬜ "Swap this meal" — regenerate a single meal instead of the whole week
+- ⬜ Freezer inventory tracking — knowing what's already batch-frozen from a prior week and
+  factoring that into future generation (skip re-cooking/re-buying accordingly), deferred from
+  MVP 1.2's narrower "suggest doubling the batch" version
 
 ## Explicitly not planned
 
