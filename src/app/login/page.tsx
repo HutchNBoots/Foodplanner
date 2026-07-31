@@ -2,6 +2,7 @@
 
 import { Suspense, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
+import { APP_VERSION } from "@/lib/version";
 
 function LoginForm() {
   const router = useRouter();
@@ -59,6 +60,7 @@ function LoginForm() {
         <button type="submit" className="btn-primary w-full" disabled={loading}>
           {loading ? "Checking..." : "Log in"}
         </button>
+        <p className="text-center text-xs text-neutral-300">v{APP_VERSION}</p>
       </form>
     </div>
   );

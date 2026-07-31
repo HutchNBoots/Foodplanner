@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { getLatestWeek, getOrCreateHousehold } from "@/lib/db/queries";
+import { APP_VERSION } from "@/lib/version";
 
 // Always reflects the latest household/week state - must not be statically
 // prerendered at build time (see DECISIONS.md).
@@ -15,6 +16,7 @@ export default async function HomePage() {
       <div>
         <h1 className="text-2xl font-semibold">{household.name}</h1>
         <p className="mt-1 text-neutral-500">Ask → generate → optimise → order.</p>
+        <p className="mt-1 text-xs text-neutral-300">v{APP_VERSION}</p>
       </div>
 
       {latestWeek && (
