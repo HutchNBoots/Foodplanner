@@ -34,25 +34,13 @@ In **Settings → Environment Variables** (Production, and Preview too if you wa
 
 (`DATABASE_URL` is already set from step 2 - leave it as-is.)
 
-## 4. Run the first migration
+## 4. Redeploy
 
-The database starts empty - the app's tables need to exist before the first real request. From your own machine (or this repo checked out anywhere with Node installed):
+No separate migration step needed - the database migration runs automatically as part of Vercel's own build (via the `vercel-build` script in `package.json`, which Vercel picks up in place of the default build command with zero config). It runs on every deploy and is safe to repeat (already-applied migrations are skipped), so this also keeps the schema in sync automatically whenever the code changes in the future.
 
-1. Copy the `DATABASE_URL` value from Vercel's **Storage** tab (the Postgres database's `.env.local` tab shows it, or **Settings → Environment Variables**).
-2. Run:
+The placeholder deploy from step 1 ran before any of the env vars in step 3 (or `DATABASE_URL` from step 2) existed - environment variable changes only apply to deployments made *after* they're set. Trigger a fresh one now: **Deployments** tab → **...** on the latest deployment → **Redeploy**, or just push any commit to `main`. Watch the build logs for this deployment - you should see `Running migrations against Vercel Postgres (Neon) DATABASE_URL...` followed by `Migrations complete.` before the normal Next.js build output starts.
 
-   ```bash
-   npm install
-   DATABASE_URL="postgres://...neon.tech/..." npm run db:migrate
-   ```
-
-You should see `Migrations complete.` This creates the `households`, `weeks`, `meals`, `feedback`, and `shopping_items` tables. Re-run this same command (with the same `DATABASE_URL`) any time the schema changes in the future (i.e. after pulling a change that touches `src/lib/db/schema.ts` and includes a new file under `src/db/migrations/`).
-
-## 5. Redeploy
-
-The placeholder deploy from step 1 ran before any of the env vars in step 3 (or `DATABASE_URL` from step 2) existed - environment variable changes only apply to deployments made *after* they're set. Trigger a fresh one now: **Deployments** tab → **...** on the latest deployment → **Redeploy**, or just push any commit to `main`. Vercel builds with `next build` and serves it - no other configuration needed (there's no `vercel.json`; defaults are fine for this app).
-
-## 6. Verify it worked
+## 5. Verify it worked
 
 1. Open the deployed URL on your phone or laptop, confirm the login screen appears, and log in with `APP_PASSWORD`.
 2. Go to **Settings** and confirm you can see/edit the default household (2 adults, 2 kids, Sunday sit-down lunch) - this row is auto-created on first visit.
@@ -60,7 +48,7 @@ The placeholder deploy from step 1 ran before any of the env vars in step 3 (or 
 4. Confirm recipes show photos (real Unsplash ones if you set that key, illustrated placeholders otherwise), and that the **Shopping list** tab shows an aisle-grouped, copyable list.
 5. Leave feedback on a meal (e.g. "Loved it") and confirm it saves - this is what future weeks' generations read back.
 
-If generation fails, the error message shown in the UI is the same one logged server-side (Vercel's function logs) - most likely cause is a missing/invalid `ANTHROPIC_API_KEY`. If the app loads but every page errors, double check the migration in step 4 actually ran against the same `DATABASE_URL` Vercel is using.
+If generation fails, the error message shown in the UI is the same one logged server-side (Vercel's function logs) - most likely cause is a missing/invalid `ANTHROPIC_API_KEY`. If the app loads but every page errors, check the step 4 deployment's build logs for the `Migrations complete.` line - if it's missing or errored, the build didn't reach the database (usually a `DATABASE_URL` that's missing or pointing somewhere unreachable).
 
 ## Rotating the household password
 
