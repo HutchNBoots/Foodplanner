@@ -32,7 +32,12 @@ A personal web app that replaces an existing ChatGPT-style weekly meal-planning 
 
 ## 3. Household context (bake this into the system prompt / seed data)
 
-- 2 adults on the plan; kids eat separately Mon–Sat, join for a Sunday lunch or BBQ
+- 2 adults on the plan; kids eat separately Mon–Sat, join for family meals on **Saturday
+  breakfast (softer/skippable), Saturday evening, and Sunday lunch** (updated default, see
+  `REQUIREMENTS.md` MVP 1.2 — was Sunday-only in the original spec). Regular weekday breakfasts
+  stay simple and eaten separately — a shared sit-down breakfast doesn't fit weekday mornings.
+- Family meal occasions (currently Saturday breakfast, Saturday evening, Sunday lunch): **surface
+  as editable settings, don't hardcode** — same principle as the Sunday headcount below
 - Sunday headcount: assumed 2 adults + 2 kids — **surface this as an editable setting, don't hardcode it**
 - Store: Sainsbury's (UK) — standard stock, including their High Protein and Small But Mighty ranges as convenient options, not the backbone of meals
 - Goal: moderate calorie deficit, high protein (~25–35g/adult main meal), high fibre, minimal ultra-processed food, sustainable long-term — not a crash diet
@@ -44,7 +49,9 @@ A personal web app that replaces an existing ChatGPT-style weekly meal-planning 
 
 **Step 1 — Quick intake form**, asked each time a new week is started:
 - Which week / how many days needed (full 7, weekdays only, Mon–Sat)
-- Sunday: sit-down lunch, BBQ, or skip this week
+- Family meals this week — Saturday breakfast, Saturday evening dinner, and Sunday lunch, each
+  independently sit-down / BBQ (evening only) / skip (updated from the original Sunday-only
+  question — see `REQUIREMENTS.md` MVP 1.2)
 - Dish style this week — salads / soups / tray bakes / bowls / stir-fries / no preference (skip or de-emphasise soup-type options automatically if the app detects it's currently a warm month — a simple month check is enough, no need for a weather API)
 - Anything to avoid repeating from recent weeks (pre-fill suggestions by pulling the last 2–3 weeks' dinners from history so the user can just confirm rather than type)
 - Budget this week (free text or a rough £ figure)
