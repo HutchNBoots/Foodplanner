@@ -2,6 +2,9 @@
 
 import { useRouter } from "next/navigation";
 import { useState } from "react";
+import { TabStrip } from "./TabStrip";
+import { Chip } from "./Chip";
+import { CollapsibleTrackSection, TrackSection } from "./IndexTab";
 
 type DaysMode = "full_week" | "weekdays_only" | "mon_to_sat";
 type SatBreakfastMode = "sit_down" | "skip";
@@ -17,36 +20,57 @@ const MEAL_TIMES: { key: MealTime; label: string }[] = [
 ];
 
 const DAYS_OPTIONS: { value: DaysMode; label: string }[] = [
-  { value: "full_week", label: "Full 7 days" },
-  { value: "weekdays_only", label: "Weekdays only (Mon-Fri)" },
+  { value: "full_week", label: "Full week" },
+  { value: "weekdays_only", label: "Weekdays" },
   { value: "mon_to_sat", label: "Mon-Sat" },
 ];
 
 // Saturday breakfast has no "bbq" option (a BBQ breakfast doesn't make
 // sense) - the other two family occasions keep the full set, same as MVP1's
-// Sunday mode (see DECISIONS.md).
+// Sunday mode (see DECISIONS.md). Labels shortened for MVP 1.3's tab-strip
+// control, which needs single-line labels at ~110px per segment on a 375px
+// screen (see DECISIONS.md's UX/interaction pressure-test finding).
 const SAT_BREAKFAST_OPTIONS: { value: SatBreakfastMode; label: string }[] = [
-  { value: "sit_down", label: "Sit-down breakfast" },
-  { value: "skip", label: "Skip this week" },
+  { value: "sit_down", label: "Sit-down" },
+  { value: "skip", label: "Skip" },
 ];
 
 const EVENING_OPTIONS: { value: OccasionMode; label: string }[] = [
-  { value: "sit_down", label: "Sit-down dinner" },
+  { value: "sit_down", label: "Sit-down" },
   { value: "bbq", label: "BBQ" },
-  { value: "skip", label: "Skip this week" },
+  { value: "skip", label: "Skip" },
 ];
 
 const SUN_LUNCH_OPTIONS: { value: OccasionMode; label: string }[] = [
-  { value: "sit_down", label: "Sit-down lunch" },
+  { value: "sit_down", label: "Sit-down" },
   { value: "bbq", label: "BBQ" },
-  { value: "skip", label: "Skip this week" },
+  { value: "skip", label: "Skip" },
 ];
 
 const EFFORT_OPTIONS: { value: Effort; label: string }[] = [
-  { value: "quick", label: "Quick & easy" },
+  { value: "quick", label: "Quick" },
   { value: "mixed", label: "Mixed" },
-  { value: "more_cooking", label: "Happy to cook more" },
+  { value: "more_cooking", label: "More cooking" },
 ];
+
+function optionLabel<T extends string>(options: { value: T; label: string }[], value: T): string {
+  return options.find((o) => o.value === value)?.label ?? value;
+}
+
+function familyOccasionSummary(satBreakfast: SatBreakfastMode, satEvening: OccasionMode, sunLunch: OccasionMode) {
+  return `Sat breakfast: ${optionLabel(SAT_BREAKFAST_OPTIONS, satBreakfast)} · Sat evening: ${optionLabel(EVENING_OPTIONS, satEvening)} · Sun lunch: ${optionLabel(SUN_LUNCH_OPTIONS, sunLunch)}`;
+}
+
+function mealTimesSummary(mealTimes: MealTimesNeeded) {
+  const on = MEAL_TIMES.filter((mt) => mealTimes[mt.key]).map((mt) => mt.label);
+  return on.length ? on.join(", ") : "None this week";
+}
+
+function listSummary(items: string[], max = 3) {
+  if (items.length === 0) return "None selected";
+  if (items.length <= max) return items.join(", ");
+  return `${items.slice(0, max).join(", ")} +${items.length - max} more`;
+}
 
 export function IntakeForm({
   defaultWeekStartDate,
@@ -157,8 +181,8 @@ export function IntakeForm({
   }
 
   return (
-    <form onSubmit={onSubmit} className="mt-6 space-y-6">
-      <section className="card p-4">
+    <form onSubmit={onSubmit} className="mt-6">
+      <div className="card p-4">
         <label className="label" htmlFor="weekStartDate">
           Week starting (Monday)
         </label>
@@ -172,122 +196,84 @@ export function IntakeForm({
         />
 
         <span className="label mt-4">How many days do you need?</span>
-        <div className="flex flex-wrap gap-2">
-          {DAYS_OPTIONS.map((opt) => (
-            <PillOption
-              key={opt.value}
-              label={opt.label}
-              active={daysMode === opt.value}
-              onClick={() => setDaysMode(opt.value)}
+        <TabStrip name="Days needed" options={DAYS_OPTIONS} value={daysMode} onChange={setDaysMode} />
+      </div>
+
+      <CollapsibleTrackSection
+        color="family"
+        label="Family"
+        summary={familyOccasionSummary(satBreakfast, satEvening, sunLunch)}
+      >
+        <div>
+          <p className="mb-1.5 text-sm text-ink-600">Saturday breakfast</p>
+          <TabStrip options={SAT_BREAKFAST_OPTIONS} value={satBreakfast} onChange={setSatBreakfast} />
+        </div>
+        <div>
+          <p className="mb-1.5 text-sm text-ink-600">Saturday evening</p>
+          <TabStrip options={EVENING_OPTIONS} value={satEvening} onChange={setSatEvening} />
+        </div>
+        <div>
+          <p className="mb-1.5 text-sm text-ink-600">Sunday lunch</p>
+          <TabStrip options={SUN_LUNCH_OPTIONS} value={sunLunch} onChange={setSunLunch} />
+        </div>
+      </CollapsibleTrackSection>
+
+      <CollapsibleTrackSection color="parents" label="Parents" summary={`Meals needed: ${mealTimesSummary(parentMeals)}`}>
+        <div className="flex flex-wrap gap-2.5">
+          {MEAL_TIMES.map((mt) => (
+            <Chip
+              key={mt.key}
+              label={mt.label}
+              active={parentMeals[mt.key]}
+              onClick={() => setParentMeals((m) => ({ ...m, [mt.key]: !m[mt.key] }))}
             />
           ))}
         </div>
-      </section>
+      </CollapsibleTrackSection>
 
-      <section className="card space-y-4 p-4">
-        <span className="label">Family meals this week</span>
-        <div>
-          <p className="mb-1.5 text-sm text-neutral-600">Saturday breakfast</p>
-          <div className="flex flex-wrap gap-2">
-            {SAT_BREAKFAST_OPTIONS.map((opt) => (
-              <PillOption
-                key={opt.value}
-                label={opt.label}
-                active={satBreakfast === opt.value}
-                onClick={() => setSatBreakfast(opt.value)}
-              />
-            ))}
-          </div>
+      <CollapsibleTrackSection color="kids" label="Kids" summary={`Meals needed: ${mealTimesSummary(kidsMeals)}`}>
+        <div className="flex flex-wrap gap-2.5">
+          {MEAL_TIMES.map((mt) => (
+            <Chip
+              key={mt.key}
+              label={mt.label}
+              active={kidsMeals[mt.key]}
+              onClick={() => setKidsMeals((m) => ({ ...m, [mt.key]: !m[mt.key] }))}
+            />
+          ))}
         </div>
-        <div>
-          <p className="mb-1.5 text-sm text-neutral-600">Saturday evening</p>
-          <div className="flex flex-wrap gap-2">
-            {EVENING_OPTIONS.map((opt) => (
-              <PillOption
-                key={opt.value}
-                label={opt.label}
-                active={satEvening === opt.value}
-                onClick={() => setSatEvening(opt.value)}
-              />
-            ))}
-          </div>
-        </div>
-        <div>
-          <p className="mb-1.5 text-sm text-neutral-600">Sunday lunch</p>
-          <div className="flex flex-wrap gap-2">
-            {SUN_LUNCH_OPTIONS.map((opt) => (
-              <PillOption
-                key={opt.value}
-                label={opt.label}
-                active={sunLunch === opt.value}
-                onClick={() => setSunLunch(opt.value)}
-              />
-            ))}
-          </div>
-        </div>
-      </section>
+        {!kidsMeals.breakfast && !kidsMeals.lunch && !kidsMeals.dinner && (
+          <p className="text-xs text-ink-500">All three off - no kids meals will be planned this week.</p>
+        )}
+      </CollapsibleTrackSection>
 
-      <section className="card space-y-4 p-4">
-        <span className="label">Meals needed this week</span>
+      <TrackSection color="ink" label="This week">
         <div>
-          <p className="mb-1.5 text-sm text-neutral-600">Parents</p>
-          <div className="flex flex-wrap gap-2">
-            {MEAL_TIMES.map((mt) => (
-              <PillOption
-                key={mt.key}
-                label={mt.label}
-                active={parentMeals[mt.key]}
-                onClick={() => setParentMeals((m) => ({ ...m, [mt.key]: !m[mt.key] }))}
+          <span className="label">Dish styles</span>
+          <div className="flex flex-wrap gap-2.5">
+            {dishStyles.map((style) => (
+              <Chip
+                key={style}
+                label={style}
+                muted={deemphasised.includes(style)}
+                active={selectedStyles.includes(style)}
+                onClick={() => toggle(selectedStyles, setSelectedStyles, style)}
               />
             ))}
           </div>
-        </div>
-        <div>
-          <p className="mb-1.5 text-sm text-neutral-600">Kids</p>
-          <div className="flex flex-wrap gap-2">
-            {MEAL_TIMES.map((mt) => (
-              <PillOption
-                key={mt.key}
-                label={mt.label}
-                active={kidsMeals[mt.key]}
-                onClick={() => setKidsMeals((m) => ({ ...m, [mt.key]: !m[mt.key] }))}
-              />
-            ))}
-          </div>
-          {!kidsMeals.breakfast && !kidsMeals.lunch && !kidsMeals.dinner && (
-            <p className="mt-2 text-xs text-neutral-400">
-              All three off - no kids meals will be planned this week.
+          {deemphasised.length > 0 && (
+            <p className="mt-2 text-xs text-ink-500">
+              {deemphasised.join(", ")} {deemphasised.length === 1 ? "is" : "are"} de-emphasised this month
+              (warm-weather default) - pick it anyway if you want it.
             </p>
           )}
         </div>
-      </section>
+      </TrackSection>
 
-      <section className="card p-4">
-        <span className="label">Dish styles this week</span>
-        <div className="flex flex-wrap gap-2">
-          {dishStyles.map((style) => (
-            <PillOption
-              key={style}
-              label={style}
-              muted={deemphasised.includes(style)}
-              active={selectedStyles.includes(style)}
-              onClick={() => toggle(selectedStyles, setSelectedStyles, style)}
-            />
-          ))}
-        </div>
-        {deemphasised.length > 0 && (
-          <p className="mt-2 text-xs text-neutral-400">
-            {deemphasised.join(", ")} {deemphasised.length === 1 ? "is" : "are"} de-emphasised this month
-            (warm-weather default) - pick it anyway if you want it.
-          </p>
-        )}
-      </section>
-
-      <section className="card p-4">
-        <span className="label">Proteins to use this week</span>
-        <div className="flex flex-wrap gap-2">
+      <CollapsibleTrackSection color="ink" label="Proteins" summary={`Using: ${listSummary(selectedProteins)}`}>
+        <div className="flex flex-wrap gap-2.5">
           {proteinTypes.map((protein) => (
-            <PillOption
+            <Chip
               key={protein}
               label={protein}
               active={selectedProteins.includes(protein)}
@@ -295,17 +281,16 @@ export function IntakeForm({
             />
           ))}
         </div>
-        <p className="mt-2 text-xs text-neutral-400">
+        <p className="text-xs text-ink-500">
           All selected by default - tap one to leave it out entirely this week (e.g. unselect Beef).
         </p>
-      </section>
+      </CollapsibleTrackSection>
 
-      <section className="card p-4">
-        <span className="label">Avoid repeating</span>
+      <TrackSection color="ink" label="Avoid repeating">
         {recentTitles.length > 0 ? (
-          <div className="flex flex-wrap gap-2">
+          <div className="flex flex-wrap gap-2.5">
             {recentTitles.map((title) => (
-              <PillOption
+              <Chip
                 key={title}
                 label={title}
                 active={avoidSelected.includes(title)}
@@ -314,90 +299,60 @@ export function IntakeForm({
             ))}
           </div>
         ) : (
-          <p className="text-sm text-neutral-400">No history yet - nothing to suggest.</p>
+          <p className="text-sm text-ink-500">No history yet - nothing to suggest.</p>
         )}
         <input
-          className="input mt-3"
+          className="input"
           placeholder="Anything else to avoid (comma-separated)"
           value={avoidCustom}
           onChange={(e) => setAvoidCustom(e.target.value)}
         />
-      </section>
+      </TrackSection>
 
-      <section className="card grid grid-cols-1 gap-4 p-4 sm:grid-cols-2">
-        <div>
-          <label className="label" htmlFor="budget">
-            Budget this week
-          </label>
-          <input
-            id="budget"
-            className="input"
-            placeholder="e.g. £70, or 'keep it cheap'"
-            value={budget}
-            onChange={(e) => setBudget(e.target.value)}
-          />
-        </div>
-        <div>
-          <span className="label">Effort level</span>
-          <div className="flex flex-wrap gap-2">
-            {EFFORT_OPTIONS.map((opt) => (
-              <PillOption
-                key={opt.value}
-                label={opt.label}
-                active={effort === opt.value}
-                onClick={() => setEffort(opt.value)}
-              />
-            ))}
+      <details className="card group mt-5 p-4">
+        <summary className="flex min-h-11 cursor-pointer list-none items-center justify-between font-semibold text-ink-800 [&::-webkit-details-marker]:hidden">
+          Budget, effort &amp; notes
+          <svg aria-hidden viewBox="0 0 20 20" className="h-4 w-4 shrink-0 text-ink-400 transition group-open:rotate-180">
+            <path d="M5 7l5 5 5-5" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+          </svg>
+        </summary>
+        <div className="mt-4 space-y-4">
+          <div>
+            <label className="label" htmlFor="budget">
+              Budget this week
+            </label>
+            <input
+              id="budget"
+              className="input"
+              placeholder="e.g. £70, or 'keep it cheap'"
+              value={budget}
+              onChange={(e) => setBudget(e.target.value)}
+            />
+          </div>
+          <div>
+            <span className="label">Effort level</span>
+            <TabStrip name="Effort level" options={EFFORT_OPTIONS} value={effort} onChange={setEffort} />
+          </div>
+          <div>
+            <label className="label" htmlFor="notes">
+              Anything else? (guests, leftovers to use up, cravings)
+            </label>
+            <textarea
+              id="notes"
+              className="input"
+              rows={3}
+              value={notes}
+              onChange={(e) => setNotes(e.target.value)}
+            />
           </div>
         </div>
-      </section>
+      </details>
 
-      <section className="card p-4">
-        <label className="label" htmlFor="notes">
-          Anything else? (guests, leftovers to use up, cravings)
-        </label>
-        <textarea
-          id="notes"
-          className="input"
-          rows={3}
-          value={notes}
-          onChange={(e) => setNotes(e.target.value)}
-        />
-      </section>
+      {error && <p className="mt-4 text-sm text-red-600">{error}</p>}
 
-      {error && <p className="text-sm text-red-600">{error}</p>}
-
-      <button type="submit" className="btn-primary w-full" disabled={submitting}>
+      <button type="submit" className="btn-primary mt-6 w-full" disabled={submitting}>
         {submitting ? "Starting..." : "Generate my week"}
       </button>
     </form>
-  );
-}
-
-function PillOption({
-  label,
-  active,
-  muted,
-  onClick,
-}: {
-  label: string;
-  active: boolean;
-  muted?: boolean;
-  onClick: () => void;
-}) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      className={`rounded-full border px-3.5 py-1.5 text-sm transition ${
-        active
-          ? "border-brand-600 bg-brand-600 text-white"
-          : muted
-            ? "border-neutral-200 text-neutral-400 hover:bg-neutral-50"
-            : "border-neutral-300 text-neutral-700 hover:bg-neutral-50"
-      }`}
-    >
-      {label}
-    </button>
   );
 }

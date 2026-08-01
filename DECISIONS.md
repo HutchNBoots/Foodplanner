@@ -601,3 +601,165 @@ unspaced `"2tbsp"` output and was updated to `"2 tbsp"`.
 ## Blocking items surfaced to the operator (not build-blocking, deploy-blocking)
 
 No `ANTHROPIC_API_KEY`, `UNSPLASH_ACCESS_KEY`, or production database credentials are present in this environment — expected, since §11 says these are provided at deploy time, not during the build. The app is built to run fully with local fallbacks (embedded PGlite database, illustrated placeholder images) so the whole flow is testable without any of those secrets; real keys/DB are required only for production deploy and for hitting the live Claude/Unsplash APIs. Documented precisely in `DEPLOY.md`.
+
+## MVP 1.3 — Visual identity & mobile UX pass
+
+Design-refresh milestone, not a features milestone: a real user flagged the live app as reading like
+"a generic unstyled Tailwind/shadcn template" — one flat green accent doing every job (primary
+button, active toggle, nav state), every control the same rounded-pill shape at the same weight, no
+display typeface, plain number rows for nutrition. Scope is strictly visual/IA: no change to the
+MVP1/1.1/1.2/2/2.1 data model, generation logic, or API routes. `/mnt/skills/public/frontend-design/
+SKILL.md` was read before starting and followed for its two-pass (brainstorm → self-critique) process.
+
+### Branching (again supersedes a suggested `build/mvp1.3` name)
+
+Same situation as MVP 1.1/1.2/2/2.1 (see those entries above): the session runner assigned a
+specific branch (`claude/visual-identity-mobile-ux-t3dfeh`) rather than the `build/mvp1.3` name
+floated in the task description. Used the runner's assigned branch — it's what's actually checked
+out and what the PR runs against.
+
+### Process: three subagent passes before any code was touched
+
+Per the task brief, three independent subagents reviewed the milestone in sequence — UX research
+first (grounds the problem), creative design second (proposes direction, informed by the research),
+UX/interaction third (pressure-tests that specific direction for mobile) — each one's output feeding
+the next, rather than three parallel takes reconciled after the fact. Full findings below; the
+"Resolutions" subsections after each state where this build followed a subagent's recommendation
+directly vs. made an explicit call between two subagents' conflicting suggestions.
+
+#### 1. UX research findings (audit against usability heuristics, not just "looks generic")
+
+- The single accent color (`brand-600`, ~#22c569) carries three unrelated meanings at once —
+  primary CTA (`btn-primary`), active filter (`PillOption` active state), and nav location
+  (`NavBar` active link) — with nothing else to tell them apart.
+- Section headers and sub-labels in `IntakeForm` are nearly the same visual weight (`.label` at
+  `text-sm font-medium` vs. sub-group labels at `text-sm text-neutral-600` — a one-shade difference
+  is the only cue).
+- Single-select pill groups (days mode, effort, family-occasion) and multi-select pill groups (dish
+  styles, proteins, avoid-repeat) use the identical `PillOption` component with no visual affordance
+  for "pick one" vs. "pick any."
+- Eight stacked, equally-weighted `.card` sections in the intake form, uniform `space-y-6` gaps,
+  nothing signals which are essential vs. optional before the submit button at the very bottom.
+- `PillOption` tap targets are `px-3.5 py-1.5` text-sm — roughly 30-33px effective height, under the
+  44px guidance, with only `gap-2` (8px) between wrapped chips in 6-10-chip groups.
+- No `focus-visible` styling defined on `PillOption` at all (in either `IntakeForm` or
+  `SettingsForm`) — `.input` has a focus ring, the app's most-used control doesn't.
+- Substantive instructional copy (not decoration) rendered at `text-neutral-400`/`text-neutral-300`
+  — roughly 2.8:1 contrast on white, failing WCAG AA for body text — in the kids-meals-off note,
+  the de-emphasised-styles note, the protein hint, and the shopping-list tip.
+- `WeekNutritionSummary` is `<details open>` by default, pushing 7 plain number rows above the meal
+  tabs on every single visit even though its own purpose is a secondary at-a-glance check.
+- Nutrition is numbers-only with no relative/visual encoding anywhere (`WeekNutritionSummary`'s
+  per-day rows, `MealCard`'s 5-stat `MacrosRow`) — the stated "am I on track" question requires
+  manual mental math across up to 7 rows.
+- `MacrosRow`'s `grid-cols-5` gives kcal/protein (the goal-relevant stats per `PROJECT.md` §3) no
+  more visual weight than carbs/fat/fibre.
+- `WeekTabs.tsx` and `MealTrackTabs.tsx` independently hand-roll the same segmented-tab markup, and
+  `PillOption` is separately reimplemented inline in `SettingsForm.tsx` (missing the `transition`
+  class the original has) — duplicated, drifting patterns rather than one shared component.
+- Mobile nav uses raw emoji (🍽️ 🗓️ ⚙️ 🚪) as icons — inconsistent rendering across OSes, can't take
+  brand styling, and the active/inactive state is color-only with no other differentiator.
+
+#### 2. Creative design direction (grounded in the actual subject: a household's recipe box, three eaters, a Saturday/Sunday table)
+
+**Color** — six named hex values, each doing exactly one job (all pass WCAG AA as text-on-Paper and
+white-on-fill):
+
+| Name | Hex | Job |
+|---|---|---|
+| Paper | `#EDEEE6` | Background — card-stock/chopping-board paper, not linen-cream |
+| Ink | `#24231F` | Primary text, structural lines |
+| Parents Petrol | `#1F5F5A` | The parents' calorie-deficit/high-protein track |
+| Kids Marigold | `#8C5A0A` | The kids' simpler, repeatable track |
+| Family Bramble | `#7A2340` | Weekend sit-down/BBQ family occasions |
+| Status Sage | `#4B6B4E` | Completion/on-target state (not a fourth "track" — a state) |
+
+**Type** — three typefaces, each with one restrained role: **Bricolage Grotesque** (display —
+week header, section titles, index-tab labels, used only at large sizes so it stays a treat, not
+wallpaper), **Inter** (kept, body/UI — labels, buttons, nav, paragraphs), **IBM Plex Mono** (data —
+every macro/nutrition figure, shopping-list quantities, dates; tabular numerals via monospace
+without needing an OpenType feature flag, and it reads like an actual food-packaging nutrition
+panel — the right register for this content).
+
+**Layout** — break the intake form's eight identical cards into one continuous "recipe box":
+question clusters grouped and colored by *who they're for* (Family/Parents/Kids/shared), each
+introduced by a small colored index-tab instead of a same-weight card border; single-select
+questions render as a joined tab-strip, multi-select questions render as checkbox-style chips.
+Low-frequency fields (budget, effort, notes) collapse into one closed accordion.
+
+**Signature element** — explicitly overrides the task brief's originally-sketched "colored
+edge/spine on cards" in favor of an **index-tab notch** (the physical divider tab from an actual
+recipe box) at the top-left corner of each cluster, filled in the track color, carrying the
+section's short label. Reasoning given: a flat spine is a generic "category color bar" any app
+could use; a die-cut tab is specific to this subject and does double duty as the missing
+hierarchy/label signal the research flagged, rather than being pure decoration.
+
+**Self-critique against the three flagged AI-design clichés** — checked explicitly, none hit by
+default: not cream+serif+terracotta (Paper is a cooler grey-green, not pink-cream; display face is
+a grotesque not a serif; no clay/terracotta hue exists anywhere in the palette — Bramble is a
+wine-berry, not clay-orange); not near-black+single-acid-accent (background stays light, three
+desaturated track colors each carry one meaning rather than one loud accent, Status Sage is muted
+not vermilion); not broadsheet (guarded against by using tab-shaped notches and rounded card stock
+rather than hairline dividers, and by grouping into a small number of labeled clusters rather than
+dense multi-column rules — flagged as the closest risk given "structure is information," but
+avoided).
+
+#### 3. UX/interaction mobile pressure-test (of the direction above, against real `IntakeForm.tsx` content density)
+
+- **Joined tab-strip (single-select)**: workable at 44px height on a 375px screen (3 segments ≈
+  114px each), but several existing option labels ("Weekdays only (Mon-Fri)", "Sit-down dinner")
+  will wrap to 2 lines in that width and misalign the strip — needs shorter copy, not a layout
+  change.
+- **Checkbox-chips (multi-select)**: the current `PillOption` sizing (`px-3.5 py-1.5`, ~34px) is
+  exactly the sub-44px problem the researcher flagged and the design brief doesn't override it by
+  itself — needs an explicit `min-h-11 min-w-11 px-4 py-2.5` rule and `gap-2.5` (not `gap-2`)
+  between wrapped chips so growing the targets doesn't create adjacent-mistap risk. The checkbox
+  glyph must be decorative only — the whole chip stays the tap target.
+  - **Overriding the wireframe as drawn**: the design brief's own ASCII wireframe wraps most
+    multi-select rows onto single lines with inline glyphs (`☑Lunch ☑Dinner ☐Breakfast`) — treated
+    as illustrative shorthand, not a literal spacing spec, since the pressure-test's 44px floor
+    doesn't fit that density. Implementation follows the pressure-test's concrete sizing over the
+    wireframe's visual compression.
+- **Vertical cost**: rough estimate on a 375×667 viewport put the new clustered layout at ~960px
+  before reaching the collapsed accordion, versus 1500px+ for today's 8 bordered cards — a real net
+  win, but only if the tap-target floor above doesn't erase it. Verdict: index-tab clustering alone
+  is not sufficient; needs an added collapse layer (next point).
+- **Progressive disclosure — goes further than the design brief's "budget/effort/notes only"
+  accordion**: family-occasion pickers, the parents/kids meal-time toggles, and the protein
+  selector all have real household defaults already wired in code (`defaultSatBreakfastMode`,
+  `parentMeals`/`kidsMeals` defaults, `defaultProteins`) — each collapses to a single-line editable
+  summary that expands on tap, rather than always rendering the full chip/tab-strip set. Dish
+  styles (no preset, starts empty) and the avoid-repeat text input (novel input every time) stay
+  always-expanded, since collapsing those would hide the fields a user is actually most likely to
+  touch.
+- **`WeekNutritionSummary`'s `<details open>`**: confirmed as a fix regardless of the new visual
+  system — default closed, matching `MealCard`'s ingredients/method disclosures, with the headline
+  kcal/protein figures already living in the `<summary>` line so no information is lost by
+  collapsing.
+- **Index-tab notch**: kept, with a guardrail — rendered as a non-interactive heading
+  (`cursor-default`, no hover/active state, not a `<button>`) so it doesn't read as a tappable
+  affordance sitting directly above genuinely tappable chips/tab-strips.
+- **`WeekTabs.tsx`/`MealTrackTabs.tsx`**: flagged as already having the same sub-44px tab height as
+  `PillOption` (`py-2 text-sm` ≈ 36px) — the `min-h-11` fix applies to these existing components
+  too, not just newly-built ones.
+
+#### Resolutions / build-time calls
+
+- **Followed the UX/interaction pass over the design brief's literal wireframe** where they
+  conflicted on chip/tab sizing (see the "Overriding the wireframe" note above) — the 44px floor is
+  a hard requirement per the task brief, the ASCII sketch was always illustrative.
+- **Extended the "collapse to summary" treatment to the protein picker**, matching the
+  UX/interaction pass's aside that it should get the same treatment as the family-occasion/meal-time
+  clusters (all three share the same "has a wired default, rarely changed" shape) — dish styles
+  and avoid-repeat stay expanded per its explicit "must stay visible" call.
+- **Nutrition visualization**: implemented as a small relative bar per day (`WeekNutritionSummary`)
+  and a two-tier macro layout (`MealCard`'s `MacrosRow`, kcal/protein visually larger than
+  carbs/fat/fibre) — the starting sketch in the task brief suggested this as "one option" for
+  replacing the plain number table; kept it, since neither subagent pass raised a reason to prefer
+  something else, and it directly answers the research pass's "requires manual mental math" finding.
+- **Nav emoji (🍽️ 🗓️ ⚙️ 🚪)**: left as-is rather than rebuilt into a custom icon set. The research
+  pass flagged this as a contributor to the generic-template feel, but a full icon system is a
+  larger scope addition than this pass's other fixes and wasn't specifically pressure-tested by
+  either the creative-design or UX/interaction pass — improved instead with `focus-visible` rings
+  and a stronger (non-color-only) active-state indicator on both the desktop and mobile nav, leaving
+  the icon question open for a future pass rather than guessing at a full replacement set.

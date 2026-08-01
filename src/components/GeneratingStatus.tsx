@@ -39,13 +39,13 @@ export function GeneratingStatus({ weekId }: { weekId: string }) {
 
   return (
     <div className="flex flex-col items-center justify-center gap-4 py-20 text-center">
-      <div className="h-10 w-10 animate-spin rounded-full border-4 border-brand-200 border-t-brand-600" />
+      <div className="h-10 w-10 animate-spin rounded-full border-4 border-ink-200 border-t-ink-800" />
       <div>
-        <p className="font-medium text-neutral-700">Generating your week...</p>
-        <p className="mt-1 text-sm text-neutral-500">
+        <p className="section-title">Generating your week...</p>
+        <p className="mt-1 text-sm text-ink-500">
           Claude is planning meals, macros and the shopping list. This can take a minute.
         </p>
-        <p className="mt-2 text-xs text-neutral-400">{elapsedSeconds}s elapsed</p>
+        <p className="data-figure mt-2 text-xs text-ink-400">{elapsedSeconds}s elapsed</p>
       </div>
     </div>
   );

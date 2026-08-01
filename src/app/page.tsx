@@ -26,15 +26,15 @@ export default async function HomePage() {
     <div className="flex flex-col items-center gap-6 py-10 text-center">
       <div className="text-5xl">🥗</div>
       <div>
-        <h1 className="text-2xl font-semibold">{household.name}</h1>
-        <p className="mt-1 text-neutral-500">Ask → generate → optimise → order.</p>
-        <p className="mt-1 text-xs text-neutral-300">v{APP_VERSION}</p>
+        <h1 className="section-title text-2xl">{household.name}</h1>
+        <p className="mt-1 text-ink-500">Ask → generate → optimise → order.</p>
+        <p className="data-figure mt-1 text-xs text-ink-300">v{APP_VERSION}</p>
       </div>
 
       {latestWeek && (
         <div className="card w-full max-w-sm p-4 text-left">
-          <p className="text-sm text-neutral-500">Most recent</p>
-          <p className="font-medium">
+          <p className="text-sm text-ink-500">Most recent</p>
+          <p className="font-medium text-ink-800">
             Week of {latestWeek.weekStartDate} ·{" "}
             {latestWeek.status === "ready"
               ? "Ready"
@@ -42,7 +42,7 @@ export default async function HomePage() {
                 ? "Generating..."
                 : "Failed"}
           </p>
-          {summary && <p className="mt-2 text-sm text-neutral-600">{summary}</p>}
+          {summary && <p className="mt-2 text-sm text-ink-600">{summary}</p>}
           {latestWeek.status === "ready" ? (
             <div className="mt-3 flex gap-2">
               <Link href={`/plan/${latestWeek.id}`} className="btn-secondary flex-1 text-center">
@@ -53,7 +53,7 @@ export default async function HomePage() {
               </Link>
             </div>
           ) : (
-            <Link href={`/plan/${latestWeek.id}`} className="mt-3 inline-block text-sm text-brand-600 underline">
+            <Link href={`/plan/${latestWeek.id}`} className="mt-3 inline-block text-sm text-sage-600 underline">
               View details
             </Link>
           )}

@@ -2,6 +2,9 @@ import type { meals } from "@/lib/db/schema";
 import { RecipePhoto } from "./RecipePhoto";
 import { FeedbackControls } from "./FeedbackControls";
 import { IngredientLine } from "./IngredientLine";
+import { IndexTab } from "./IndexTab";
+import { TRACK_COLOR_CLASSES, TRACK_META } from "@/lib/design/tracks";
+import { trackForMeal } from "@/lib/meals/track";
 
 type Meal = typeof meals.$inferSelect;
 
@@ -15,88 +18,109 @@ const SLOT_LABEL: Record<string, string> = {
 };
 
 export function MealCard({ meal, feedbackRating }: { meal: Meal; feedbackRating: string | null }) {
+  const track = TRACK_META[trackForMeal(meal)];
+
   return (
-    <article className="card p-4">
-      <div className="flex items-center justify-between gap-2">
-        <span className="rounded-full bg-brand-50 px-2.5 py-0.5 text-xs font-medium text-brand-700">
-          {SLOT_LABEL[meal.slot] ?? meal.slot}
-        </span>
-        {meal.batchMakes && (
-          <span className="rounded-full bg-amber-50 px-2.5 py-0.5 text-xs font-medium text-amber-700">
-            Makes {meal.batchMakes}
-            {meal.leftoverForJson?.length
-              ? ` · saved for ${meal.leftoverForJson.map((l) => `${l.day} ${SLOT_LABEL[l.slot] ?? l.slot}`).join(", ")}`
-              : ""}
-            {meal.freezerPortions ? ` · ${meal.freezerPortions} frozen for later` : ""}
+    <article className="relative">
+      <IndexTab color={track.color} label={track.label} />
+      <div className="card rounded-tl-none p-4 pt-5">
+        <div className="flex items-center justify-between gap-2">
+          <span className={`rounded-full px-2.5 py-0.5 text-xs font-medium ${TRACK_COLOR_CLASSES[track.color].soft} ${TRACK_COLOR_CLASSES[track.color].softText}`}>
+            {SLOT_LABEL[meal.slot] ?? meal.slot}
           </span>
-        )}
-      </div>
+          {meal.batchMakes && (
+            <span className="rounded-full bg-kids-50 px-2.5 py-0.5 text-xs font-medium text-kids-700">
+              Makes {meal.batchMakes}
+              {meal.leftoverForJson?.length
+                ? ` · saved for ${meal.leftoverForJson.map((l) => `${l.day} ${SLOT_LABEL[l.slot] ?? l.slot}`).join(", ")}`
+                : ""}
+              {meal.freezerPortions ? ` · ${meal.freezerPortions} frozen for later` : ""}
+            </span>
+          )}
+        </div>
 
-      <h3 className="mt-2 text-lg font-semibold">{meal.title}</h3>
-      <p className="text-sm text-neutral-500">
-        {meal.servingsAdults} adult{meal.servingsAdults === 1 ? "" : "s"}
-        {meal.servingsKids ? ` · ${meal.servingsKids} kid${meal.servingsKids === 1 ? "" : "s"}` : ""}
-      </p>
+        <h3 className="section-title mt-2">{meal.title}</h3>
+        <p className="text-sm text-ink-500">
+          {meal.servingsAdults} adult{meal.servingsAdults === 1 ? "" : "s"}
+          {meal.servingsKids ? ` · ${meal.servingsKids} kid${meal.servingsKids === 1 ? "" : "s"}` : ""}
+        </p>
 
-      <div className="mt-3">
-        <RecipePhoto
-          src={meal.imageUrl}
-          alt={meal.title}
-          source={meal.imageSource}
-          credit={meal.imageCreditJson}
+        <div className="mt-3">
+          <RecipePhoto
+            src={meal.imageUrl}
+            alt={meal.title}
+            source={meal.imageSource}
+            credit={meal.imageCreditJson}
+          />
+        </div>
+
+        <MacrosRow meal={meal} />
+
+        <details className="mt-3 text-sm">
+          <summary className="min-h-11 cursor-pointer py-1 font-medium text-ink-700">
+            Ingredients ({meal.ingredientsJson.length})
+          </summary>
+          <ul className="mt-2 space-y-1 text-ink-600">
+            {meal.ingredientsJson.map((ing, i) => (
+              <li key={i}>
+                <IngredientLine ingredient={ing} />
+              </li>
+            ))}
+          </ul>
+        </details>
+
+        <details className="mt-1 text-sm">
+          <summary className="min-h-11 cursor-pointer py-1 font-medium text-ink-700">Method</summary>
+          <ol className="mt-2 list-decimal space-y-1.5 pl-4 text-ink-600">
+            {meal.methodJson.map((step, i) => (
+              <li key={i}>{step}</li>
+            ))}
+          </ol>
+        </details>
+
+        <FeedbackControls
+          mealId={meal.id}
+          weekId={meal.weekId}
+          initialRating={feedbackRating as never}
         />
       </div>
-
-      <MacrosRow meal={meal} />
-
-      <details className="mt-3 text-sm">
-        <summary className="cursor-pointer font-medium text-neutral-700">
-          Ingredients ({meal.ingredientsJson.length})
-        </summary>
-        <ul className="mt-2 space-y-1 text-neutral-600">
-          {meal.ingredientsJson.map((ing, i) => (
-            <li key={i}>
-              <IngredientLine ingredient={ing} />
-            </li>
-          ))}
-        </ul>
-      </details>
-
-      <details className="mt-2 text-sm">
-        <summary className="cursor-pointer font-medium text-neutral-700">Method</summary>
-        <ol className="mt-2 list-decimal space-y-1.5 pl-4 text-neutral-600">
-          {meal.methodJson.map((step, i) => (
-            <li key={i}>{step}</li>
-          ))}
-        </ol>
-      </details>
-
-      <FeedbackControls
-        mealId={meal.id}
-        weekId={meal.weekId}
-        initialRating={feedbackRating as never}
-      />
     </article>
   );
 }
 
+/** Two-tier macro layout (MVP 1.3, see DECISIONS.md): kcal/protein - the two
+ * figures §3's calorie-deficit/high-protein goal actually tracks - get
+ * visual priority over carbs/fat/fibre, and every figure uses the `data`
+ * (monospace, tabular) face rather than the body face. */
 function MacrosRow({ meal }: { meal: Meal }) {
-  const stats = [
+  const primary = [
     { label: "kcal", value: Math.round(meal.kcal) },
     { label: "protein", value: `${Math.round(meal.proteinG)}g` },
+  ];
+  const secondary = [
     { label: "carbs", value: `${Math.round(meal.carbsG)}g` },
     { label: "fat", value: `${Math.round(meal.fatG)}g` },
     { label: "fibre", value: `${Math.round(meal.fibreG)}g` },
   ];
 
   return (
-    <div className="mt-3 grid grid-cols-5 gap-1 rounded-lg bg-neutral-50 p-2 text-center">
-      {stats.map((s) => (
-        <div key={s.label}>
-          <div className="text-sm font-semibold text-neutral-800">{s.value}</div>
-          <div className="text-[10px] uppercase tracking-wide text-neutral-400">{s.label}</div>
-        </div>
-      ))}
+    <div className="mt-3 rounded-lg bg-ink-50 p-2.5">
+      <div className="grid grid-cols-2 gap-2 text-center">
+        {primary.map((s) => (
+          <div key={s.label}>
+            <div className="data-figure text-lg font-semibold text-ink-800">{s.value}</div>
+            <div className="text-[10px] tracking-wide text-ink-400 uppercase">{s.label}</div>
+          </div>
+        ))}
+      </div>
+      <div className="mt-2 grid grid-cols-3 gap-1 border-t border-ink-100 pt-2 text-center">
+        {secondary.map((s) => (
+          <div key={s.label}>
+            <div className="data-figure text-sm font-medium text-ink-600">{s.value}</div>
+            <div className="text-[10px] tracking-wide text-ink-400 uppercase">{s.label}</div>
+          </div>
+        ))}
+      </div>
     </div>
   );
 }

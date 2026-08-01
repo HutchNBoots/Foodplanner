@@ -5,6 +5,55 @@ Start here for "where are we" - the other docs are: `PROJECT.md` (original spec)
 (method-step eval rubric/results), `README.md` (local dev), `DEPLOY.md` (deploy steps). This file is
 just the up-to-date summary of where things actually stand.
 
+## MVP 1.3 - Visual identity & mobile UX pass, shipped, in PR to `main`
+
+Design-refresh milestone (`REQUIREMENTS.md`'s "MVP 1.3"), built on the session-runner-assigned
+branch `claude/visual-identity-mobile-ux-t3dfeh` from latest `main` (after MVP 2.1 merged). Not a
+features milestone - a real user flagged the live app as reading like a generic unstyled
+Tailwind/shadcn template (one flat green accent doing every job, every control the same rounded
+pill, no display typeface, plain number nutrition rows). Scope is strictly visual/IA: no change to
+the MVP1-2.1 data model, generation logic, or API routes. `tsc`, `eslint`, `vitest` (90 tests), and
+`playwright` all green, plus a manual mobile-viewport (375px) browser pass through login, home, the
+full intake form (collapsed and expanded), all three recipe tracks, the shopping list, and Settings.
+Full reasoning, all three subagent findings, and the self-critique against the frontend-design
+skill's cliché checklist are in `DECISIONS.md`'s "MVP 1.3" entry - this is the short version.
+
+- **A six-color token system with named jobs** replaces the single flat green accent: Paper/Ink
+  (background/structural text), Parents Petrol / Kids Marigold / Family Bramble (one color per
+  eater track), and Status Sage (a completion/on-target state, not a fourth track). No color means
+  more than one thing anymore - the primary-action button, active filters, and nav state are now
+  visually distinct.
+- **Three typefaces with restrained roles**: Bricolage Grotesque (display - headers/section titles
+  only), Inter (kept, body/UI), IBM Plex Mono (every macro/nutrition figure, shopping quantity, and
+  date - tabular numerals via monospace).
+- **The signature element**: an "index-tab" notch (a recipe-box divider tab) fused to the top-left
+  corner of every track-scoped card/cluster, filled in that track's color and carrying its label -
+  overrides the originally-sketched "colored edge/spine" idea (see `DECISIONS.md` for why).
+- **Segmented controls redesigned per-purpose**: a joined tab-strip for single-select choices (days
+  needed, family occasions, effort, the Recipes/Shopping-list switch, the Parents/Kids/Family
+  tabs), checkbox-style chips for multi-select choices (dish styles, proteins, avoid-repeat,
+  meal-times-needed) - the two now look visibly different instead of both being the same pill.
+- **Nutrition redesigned to scan faster on a phone**: `WeekNutritionSummary` is closed by default
+  (was `open`, pushing content down on every visit) with a small relative bar per day; `MealCard`'s
+  macros grid gives kcal/protein visual priority over carbs/fat/fibre instead of five equal-weight
+  numbers.
+- **Progressive disclosure added to the intake form**: family-occasion pickers, Parents/Kids
+  meal-times, and the protein picker all collapse to a one-line editable summary by default (they
+  have real household defaults already wired in) - dish styles and avoid-repeat stay always
+  expanded (no preset, novel input respectively). Budget/effort/notes stay a single closed
+  accordion, per the original brief.
+- **44px minimum tap targets and visible `focus-visible` rings** on every rebuilt control
+  (`TabStrip`, `Chip`, `WeekTabs`, `MealTrackTabs`, nav links) - the old pill sizing
+  (`px-3.5 py-1.5`, ~30-33px) and missing focus states were both flagged by the UX research pass.
+- **Bundled placeholder illustration SVGs recolored** (`public/images/categories/*.svg`) - their
+  old saturated per-category gradients (bright yellow/orange/red) clashed hard against the new
+  muted paper/ink palette once everything else changed; now a consistent muted paper-toned
+  gradient behind the same emoji. Purely a static visual asset, not the image-resolution logic.
+- One real bug caught in the mobile screenshot pass, not by `tsc`/`eslint`/tests: a native
+  `<details>` element only renders its `<summary>` child while closed, so the collapsible intake
+  clusters' index-tab (a sibling of `<summary>`) was invisible until expanded - fixed by moving it
+  inside `<summary>`. See `DECISIONS.md`.
+
 ## MVP 2.1 - shipped, in PR to `main`
 
 Small operator-requested backlog grab-bag, built as one milestone on `build/mvp2.1` from latest

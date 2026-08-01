@@ -1,14 +1,59 @@
 @import "tailwindcss";
 
+/* MVP 1.3 visual-identity token system (see DECISIONS.md's "MVP 1.3" entry).
+ * Six named colors, each with exactly one job - no color is asked to mean
+ * "primary action" AND "active filter" AND "nav state" anymore:
+ *   paper / ink   - background & structural text, the "recipe card stock"
+ *   parents       - the adults' calorie-deficit/high-protein track
+ *   kids          - the kids' simpler, repeatable track
+ *   family        - weekend sit-down/BBQ family occasions
+ *   sage          - a status color (on-target, checked off) - not a track */
 @theme {
-  --color-brand-50: #f0fdf6;
-  --color-brand-100: #dcfce9;
-  --color-brand-200: #bbf7d5;
-  --color-brand-400: #4ade90;
-  --color-brand-500: #22c569;
-  --color-brand-600: #16a34f;
-  --color-brand-700: #15803d;
+  --color-paper: #ede9e0;
+  --color-paper-raised: #f7f5ef;
+
+  --color-ink-50: #f4f3f1;
+  --color-ink-100: #e6e4e0;
+  --color-ink-200: #cfccc4;
+  --color-ink-300: #a9a59a;
+  --color-ink-400: #7c7669;
+  --color-ink-500: #57534a;
+  --color-ink-600: #423f38;
+  --color-ink-700: #322f2a;
+  --color-ink-800: #24231f;
+  --color-ink-900: #1a1916;
+
+  --color-parents-50: #eaf3f1;
+  --color-parents-100: #d3e6e3;
+  --color-parents-200: #a7cdc6;
+  --color-parents-500: #2a7a73;
+  --color-parents-600: #1f5f5a;
+  --color-parents-700: #164541;
+
+  --color-kids-50: #fbf1e2;
+  --color-kids-100: #f3dfb9;
+  --color-kids-200: #e6c184;
+  --color-kids-500: #a66d0c;
+  --color-kids-600: #8c5a0a;
+  --color-kids-700: #6b4508;
+
+  --color-family-50: #f6e9ed;
+  --color-family-100: #ebccd5;
+  --color-family-200: #d99cae;
+  --color-family-500: #922c4e;
+  --color-family-600: #7a2340;
+  --color-family-700: #5c1930;
+
+  --color-sage-50: #eaf0ea;
+  --color-sage-100: #d2e0d3;
+  --color-sage-200: #a7c2a9;
+  --color-sage-500: #5c8060;
+  --color-sage-600: #4b6b4e;
+  --color-sage-700: #3a533c;
+
   --font-sans: var(--font-inter), system-ui, sans-serif;
+  --font-display: var(--font-bricolage), var(--font-inter), system-ui, sans-serif;
+  --font-data: var(--font-plex-mono), ui-monospace, "SFMono-Regular", Menlo, monospace;
 }
 
 :root {
@@ -16,27 +61,44 @@
 }
 
 body {
-  @apply bg-neutral-50 text-neutral-900 antialiased;
+  @apply bg-paper text-ink-800 antialiased;
 }
 
 @layer utilities {
+  /* Base card - "recipe card stock." Track-specific cards add an .index-tab
+   * corner element on top of this rather than a colored border/spine. */
   .card {
-    @apply rounded-2xl border border-neutral-200 bg-white shadow-sm;
+    @apply rounded-2xl border border-ink-100 bg-paper-raised shadow-[0_1px_2px_rgba(36,35,31,0.06)];
   }
 
+  /* One primary action per screen: a dark "stamped" fill distinct from all
+   * three track colors, so it never competes with "which track is this" -
+   * see DECISIONS.md's "Resolutions" note on the primary-action color. */
   .btn-primary {
-    @apply inline-flex items-center justify-center rounded-full bg-brand-600 px-5 py-2.5 text-sm font-medium text-white transition hover:bg-brand-700 disabled:cursor-not-allowed disabled:opacity-50;
+    @apply inline-flex items-center justify-center gap-2 rounded-xl bg-ink-800 px-5 py-3 text-sm font-semibold text-paper transition hover:bg-ink-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ink-800 focus-visible:ring-offset-2 focus-visible:ring-offset-paper disabled:cursor-not-allowed disabled:opacity-50;
   }
 
   .btn-secondary {
-    @apply inline-flex items-center justify-center rounded-full border border-neutral-300 bg-white px-5 py-2.5 text-sm font-medium text-neutral-700 transition hover:bg-neutral-100 disabled:cursor-not-allowed disabled:opacity-50;
+    @apply inline-flex items-center justify-center gap-2 rounded-xl border border-ink-300 bg-paper-raised px-5 py-3 text-sm font-semibold text-ink-700 transition hover:border-ink-400 hover:bg-ink-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ink-800 focus-visible:ring-offset-2 focus-visible:ring-offset-paper disabled:cursor-not-allowed disabled:opacity-50;
   }
 
   .input {
-    @apply w-full rounded-xl border border-neutral-300 bg-white px-3.5 py-2.5 text-sm focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-200;
+    @apply w-full rounded-xl border border-ink-200 bg-paper-raised px-3.5 py-2.5 text-sm text-ink-800 focus:border-ink-500 focus:outline-none focus:ring-2 focus:ring-ink-800/20;
   }
 
   .label {
-    @apply mb-1.5 block text-sm font-medium text-neutral-700;
+    @apply mb-1.5 block text-sm font-medium text-ink-600;
+  }
+
+  /* Cluster/section headers - the display face, used with restraint (see
+   * DECISIONS.md). Never used for body copy or form labels. */
+  .section-title {
+    @apply font-display text-lg font-semibold tracking-tight text-ink-800;
+  }
+
+  /* Every macro/nutrition figure, shopping quantity, and date - tabular
+   * numerals via monospace so figures align in a grid without a feature flag. */
+  .data-figure {
+    @apply font-data tabular-nums;
   }
 }

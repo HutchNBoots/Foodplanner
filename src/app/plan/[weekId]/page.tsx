@@ -52,7 +52,7 @@ export default async function WeekPlanPage({ params }: { params: Promise<{ weekI
   return (
     <div>
       <WeekTabs weekId={weekId} active="recipes" />
-      <h1 className="text-xl font-semibold">Week of {week.weekStartDate}</h1>
+      <h1 className="section-title text-xl">Week of {week.weekStartDate}</h1>
 
       <div className="mt-4">
         <WeekNutritionSummary meals={nutritionMeals} />

@@ -39,8 +39,8 @@ function LoginForm() {
       <form onSubmit={onSubmit} className="card w-full max-w-sm space-y-4 p-6">
         <div className="text-center">
           <div className="text-3xl">🥗</div>
-          <h1 className="mt-2 text-xl font-semibold">Foodplanner</h1>
-          <p className="mt-1 text-sm text-neutral-500">Enter the household password to continue.</p>
+          <h1 className="section-title mt-2 text-xl">Foodplanner</h1>
+          <p className="mt-1 text-sm text-ink-500">Enter the household password to continue.</p>
         </div>
         <div>
           <label htmlFor="password" className="label">
@@ -60,7 +60,7 @@ function LoginForm() {
         <button type="submit" className="btn-primary w-full" disabled={loading}>
           {loading ? "Checking..." : "Log in"}
         </button>
-        <p className="text-center text-xs text-neutral-300">v{APP_VERSION}</p>
+        <p className="data-figure text-center text-xs text-ink-300">v{APP_VERSION}</p>
       </form>
     </div>
   );

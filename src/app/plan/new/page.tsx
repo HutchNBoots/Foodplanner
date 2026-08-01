@@ -11,8 +11,8 @@ export default async function NewWeekPage() {
 
   return (
     <div className="mx-auto max-w-xl">
-      <h1 className="text-2xl font-semibold">Plan the week</h1>
-      <p className="mt-1 text-sm text-neutral-500">
+      <h1 className="section-title text-2xl">Plan the week</h1>
+      <p className="mt-1 text-sm text-ink-500">
         A few quick questions, then Claude generates the full week.
       </p>
       <IntakeForm

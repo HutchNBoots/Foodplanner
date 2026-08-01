@@ -24,7 +24,7 @@ export default async function ShoppingListPage({ params }: { params: Promise<{ w
   return (
     <div>
       <WeekTabs weekId={weekId} active="shopping" />
-      <h1 className="mb-4 text-xl font-semibold">Shopping list</h1>
+      <h1 className="section-title mb-4 text-xl">Shopping list</h1>
       <ShoppingList items={shoppingItems} />
     </div>
   );
