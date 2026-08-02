@@ -286,32 +286,9 @@ export function IntakeForm({
         </p>
       </CollapsibleTrackSection>
 
-      <TrackSection color="ink" label="Avoid repeating">
-        {recentTitles.length > 0 ? (
-          <div className="flex flex-wrap gap-2.5">
-            {recentTitles.map((title) => (
-              <Chip
-                key={title}
-                label={title}
-                active={avoidSelected.includes(title)}
-                onClick={() => toggle(avoidSelected, setAvoidSelected, title)}
-              />
-            ))}
-          </div>
-        ) : (
-          <p className="text-sm text-ink-500">No history yet - nothing to suggest.</p>
-        )}
-        <input
-          className="input"
-          placeholder="Anything else to avoid (comma-separated)"
-          value={avoidCustom}
-          onChange={(e) => setAvoidCustom(e.target.value)}
-        />
-      </TrackSection>
-
       <details className="card group mt-5 p-4">
         <summary className="flex min-h-11 cursor-pointer list-none items-center justify-between font-semibold text-ink-800 [&::-webkit-details-marker]:hidden">
-          Budget, effort &amp; notes
+          Budget, effort &amp; avoid repeating
           <svg aria-hidden viewBox="0 0 20 20" className="h-4 w-4 shrink-0 text-ink-400 transition group-open:rotate-180">
             <path d="M5 7l5 5 5-5" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
           </svg>
@@ -334,19 +311,43 @@ export function IntakeForm({
             <TabStrip name="Effort level" options={EFFORT_OPTIONS} value={effort} onChange={setEffort} />
           </div>
           <div>
-            <label className="label" htmlFor="notes">
-              Anything else? (guests, leftovers to use up, cravings)
-            </label>
-            <textarea
-              id="notes"
-              className="input"
-              rows={3}
-              value={notes}
-              onChange={(e) => setNotes(e.target.value)}
+            <span className="label">Avoid repeating</span>
+            {recentTitles.length > 0 ? (
+              <div className="flex flex-wrap gap-2.5">
+                {recentTitles.map((title) => (
+                  <Chip
+                    key={title}
+                    label={title}
+                    active={avoidSelected.includes(title)}
+                    onClick={() => toggle(avoidSelected, setAvoidSelected, title)}
+                  />
+                ))}
+              </div>
+            ) : (
+              <p className="text-sm text-ink-500">No history yet - nothing to suggest.</p>
+            )}
+            <input
+              className="input mt-2"
+              placeholder="Anything else to avoid (comma-separated)"
+              value={avoidCustom}
+              onChange={(e) => setAvoidCustom(e.target.value)}
             />
           </div>
         </div>
       </details>
+
+      <TrackSection color="ink" label="About this week">
+        <label className="label" htmlFor="notes">
+          Anything else? (guests, leftovers to use up, cravings)
+        </label>
+        <textarea
+          id="notes"
+          className="input"
+          rows={3}
+          value={notes}
+          onChange={(e) => setNotes(e.target.value)}
+        />
+      </TrackSection>
 
       {error && <p className="mt-4 text-sm text-red-600">{error}</p>}
 

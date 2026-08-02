@@ -6,6 +6,7 @@ import { WeekTabs } from "@/components/WeekTabs";
 import { MealTrackTabs } from "@/components/MealTrackTabs";
 import { RetryGenerationButton } from "@/components/RetryGenerationButton";
 import { WeekNutritionSummary } from "@/components/WeekNutritionSummary";
+import { WeekIntakeSummary } from "@/components/WeekIntakeSummary";
 import { trackForMeal } from "@/lib/meals/track";
 
 export const dynamic = "force-dynamic";
@@ -53,6 +54,8 @@ export default async function WeekPlanPage({ params }: { params: Promise<{ weekI
     <div>
       <WeekTabs weekId={weekId} active="recipes" />
       <h1 className="section-title text-xl">Week of {week.weekStartDate}</h1>
+
+      <WeekIntakeSummary intake={week.intakeJson} />
 
       <div className="mt-4">
         <WeekNutritionSummary meals={nutritionMeals} />

@@ -5,7 +5,7 @@ Start here for "where are we" - the other docs are: `PROJECT.md` (original spec)
 (method-step eval rubric/results), `README.md` (local dev), `DEPLOY.md` (deploy steps). This file is
 just the up-to-date summary of where things actually stand.
 
-## MVP 1.3 - Visual identity & mobile UX pass, shipped, in PR to `main`
+## MVP 1.3 - Visual identity & mobile UX pass, shipped and merged, plus a follow-up
 
 Design-refresh milestone (`REQUIREMENTS.md`'s "MVP 1.3"), built on the session-runner-assigned
 branch `claude/visual-identity-mobile-ux-t3dfeh` from latest `main` (after MVP 2.1 merged). Not a
@@ -53,6 +53,17 @@ skill's cliché checklist are in `DECISIONS.md`'s "MVP 1.3" entry - this is the 
   `<details>` element only renders its `<summary>` child while closed, so the collapsible intake
   clusters' index-tab (a sibling of `<summary>`) was invisible until expanded - fixed by moving it
   inside `<summary>`. See `DECISIONS.md`.
+
+**Follow-up (small operator-requested tweaks after the above merged)** - see `DECISIONS.md`'s "MVP
+1.3 follow-up" entry:
+
+- "Avoid repeating" moved into the "Budget, effort & notes" accordion (now "Budget, effort & avoid
+  repeating"); notes moved out into its own new "About this week" section.
+- The week's notes and avoid-repeating list - already persisted verbatim on `weeks.intakeJson`, no
+  schema change needed - are now surfaced in an "About this week" card at the top of the plan page,
+  rendered only when either was actually set.
+- Each day in the recipe view is now a collapsed-by-default `<details>` (was always-expanded) with
+  a meal-count hint, so a full week isn't a wall of expanded meal cards on a phone.
 
 ## MVP 2.1 - shipped, in PR to `main`
 
