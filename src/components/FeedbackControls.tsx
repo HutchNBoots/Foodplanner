@@ -41,7 +41,7 @@ export function FeedbackControls({
   }
 
   return (
-    <div className="mt-3 border-t border-neutral-100 pt-3">
+    <div className="mt-3 border-t border-ink-100 pt-3">
       <div className="flex flex-wrap gap-2">
         {OPTIONS.map((opt) => (
           <button
@@ -49,10 +49,10 @@ export function FeedbackControls({
             type="button"
             disabled={saving}
             onClick={() => submit(opt.value)}
-            className={`rounded-full border px-3 py-1 text-xs transition ${
+            className={`min-h-9 rounded-lg border px-3 py-1 text-xs font-medium transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ink-800 focus-visible:ring-offset-2 focus-visible:ring-offset-paper ${
               rating === opt.value
-                ? "border-brand-600 bg-brand-50 text-brand-700"
-                : "border-neutral-300 text-neutral-600 hover:bg-neutral-50"
+                ? "border-sage-600 bg-sage-50 text-sage-700"
+                : "border-ink-300 text-ink-600 hover:bg-ink-50"
             }`}
           >
             {opt.label}
@@ -61,7 +61,7 @@ export function FeedbackControls({
         <button
           type="button"
           onClick={() => setShowNote((v) => !v)}
-          className="rounded-full border border-neutral-300 px-3 py-1 text-xs text-neutral-500 hover:bg-neutral-50"
+          className="min-h-9 rounded-lg border border-ink-300 px-3 py-1 text-xs text-ink-500 transition hover:bg-ink-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ink-800 focus-visible:ring-offset-2 focus-visible:ring-offset-paper"
         >
           + note
         </button>
@@ -84,7 +84,7 @@ export function FeedbackControls({
           </button>
         </div>
       )}
-      {saved && <p className="mt-1 text-xs text-brand-600">Saved - this&apos;ll steer next week&apos;s plan.</p>}
+      {saved && <p className="mt-1 text-xs text-sage-600">Saved - this&apos;ll steer next week&apos;s plan.</p>}
     </div>
   );
 }

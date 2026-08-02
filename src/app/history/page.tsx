@@ -26,27 +26,30 @@ export default async function HistoryPage() {
 
   return (
     <div>
-      <h1 className="mb-4 text-2xl font-semibold">History</h1>
+      <h1 className="section-title mb-4 text-2xl">History</h1>
       {weeks.length === 0 ? (
-        <p className="text-sm text-neutral-500">No weeks planned yet.</p>
+        <p className="text-sm text-ink-500">No weeks planned yet.</p>
       ) : (
         <ul className="space-y-2">
           {weeks.map((week) => (
             <li key={week.id}>
-              <Link href={`/plan/${week.id}`} className="card flex items-center justify-between p-4">
+              <Link
+                href={`/plan/${week.id}`}
+                className="card flex min-h-11 items-center justify-between p-4 transition hover:border-ink-300 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ink-800 focus-visible:ring-offset-2 focus-visible:ring-offset-paper"
+              >
                 <div>
-                  <span className="font-medium">Week of {week.weekStartDate}</span>
-                  <p className="text-xs text-neutral-400">
+                  <span className="font-medium text-ink-800">Week of {week.weekStartDate}</span>
+                  <p className="data-figure text-xs text-ink-400">
                     Generated {GENERATED_AT_FORMAT.format(new Date(week.createdAt))}
                   </p>
                 </div>
                 <span
-                  className={`text-sm ${
+                  className={`text-sm font-medium ${
                     week.status === "ready"
-                      ? "text-brand-600"
+                      ? "text-sage-600"
                       : week.status === "error"
                         ? "text-red-600"
-                        : "text-neutral-500"
+                        : "text-ink-500"
                   }`}
                 >
                   {STATUS_LABEL[week.status] ?? week.status}

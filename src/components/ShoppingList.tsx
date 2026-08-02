@@ -47,7 +47,7 @@ export function ShoppingList({ items: initialItems }: { items: ShoppingItem[] })
   }
 
   if (items.length === 0) {
-    return <p className="text-sm text-neutral-500">No shopping items yet.</p>;
+    return <p className="text-sm text-ink-500">No shopping items yet.</p>;
   }
 
   return (
@@ -56,7 +56,7 @@ export function ShoppingList({ items: initialItems }: { items: ShoppingItem[] })
         <button type="button" onClick={copy} className="btn-secondary w-full">
           {copied ? "Copied!" : "Copy as plain text"}
         </button>
-        <p className="mt-2 text-xs text-neutral-400">
+        <p className="mt-2 text-xs text-ink-500">
           Tip: open Claude in Chrome on Sainsbury&apos;s site, paste this list, and ask it to add
           everything to your basket - it&apos;ll confirm anything consequential and stop before
           payment, so you review and pay yourself.
@@ -65,27 +65,27 @@ export function ShoppingList({ items: initialItems }: { items: ShoppingItem[] })
 
       {Array.from(groups.entries()).map(([aisle, list]) => (
         <section key={aisle} className="card p-4">
-          <h3 className="font-semibold text-neutral-800">{aisle}</h3>
-          <ul className="mt-2 divide-y divide-neutral-100">
+          <h3 className="section-title text-base">{aisle}</h3>
+          <ul className="mt-2 divide-y divide-ink-100">
             {list.map((item) => (
-              <li key={item.id} className="py-2">
-                <label className="flex cursor-pointer items-start gap-3">
+              <li key={item.id} className="py-1">
+                <label className="flex min-h-11 cursor-pointer items-start gap-3 py-1.5">
                   <input
                     type="checkbox"
-                    className="mt-1 h-4 w-4 shrink-0 rounded border-neutral-300 text-brand-600"
+                    className="mt-1 h-5 w-5 shrink-0 rounded border-ink-300 text-sage-600 focus-visible:ring-2 focus-visible:ring-ink-800 focus-visible:ring-offset-2 focus-visible:ring-offset-paper"
                     checked={item.checked}
                     onChange={() => toggle(item)}
                   />
                   <div className="min-w-0 flex-1">
                     <div className="flex items-baseline justify-between gap-2">
                       <span
-                        className={`font-medium ${item.checked ? "text-neutral-400 line-through" : "text-neutral-800"}`}
+                        className={`font-medium ${item.checked ? "text-ink-400 line-through" : "text-ink-800"}`}
                       >
                         {item.productName}
                       </span>
-                      <span className="shrink-0 text-sm text-neutral-500">{item.displayQuantity}</span>
+                      <span className="data-figure shrink-0 text-sm text-ink-500">{item.displayQuantity}</span>
                     </div>
-                    <p className="mt-0.5 text-xs text-neutral-400">
+                    <p className="mt-0.5 text-xs text-ink-400">
                       Used in: {item.usedInJson.map((u) => `${u.day} ${u.title}`).join(", ")}
                     </p>
                   </div>

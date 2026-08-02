@@ -3,6 +3,9 @@
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import type { households } from "@/lib/db/schema";
+import { TabStrip } from "./TabStrip";
+import { Chip } from "./Chip";
+import { TrackSection } from "./IndexTab";
 
 type Household = typeof households.$inferSelect;
 
@@ -137,31 +140,23 @@ export function SettingsForm({
         </div>
       </section>
 
-      <section className="card space-y-4 p-4">
-        <h2 className="font-semibold">Family meal occasions</h2>
-        <p className="text-xs text-neutral-400">
-          Defaults for the week - each is still editable per week in the intake form. Saturday
-          breakfast is the softest of the three, on by default but easiest to skip.
-        </p>
+      <TrackSection color="family" label="Family">
+        <div>
+          <h2 className="section-title text-base">Family meal occasions</h2>
+          <p className="mt-1 text-xs text-ink-500">
+            Defaults for the week - each is still editable per week in the intake form. Saturday
+            breakfast is the softest of the three, on by default but easiest to skip.
+          </p>
+        </div>
         {FAMILY_OCCASIONS.map((occasion) => (
           <div key={occasion.key}>
             <span className="label">{occasion.label}</span>
-            <div className="flex flex-wrap gap-2">
-              {occasion.modes.map((mode) => (
-                <button
-                  key={mode}
-                  type="button"
-                  onClick={() => set(occasion.key, mode)}
-                  className={`rounded-full border px-3.5 py-1.5 text-sm ${
-                    form[occasion.key] === mode
-                      ? "border-brand-600 bg-brand-600 text-white"
-                      : "border-neutral-300 text-neutral-700"
-                  }`}
-                >
-                  {MODE_LABEL[mode]}
-                </button>
-              ))}
-            </div>
+            <TabStrip
+              name={occasion.label}
+              options={occasion.modes.map((mode) => ({ value: mode, label: MODE_LABEL[mode] ?? mode }))}
+              value={form[occasion.key]}
+              onChange={(value) => set(occasion.key, value as never)}
+            />
           </div>
         ))}
         <div className="grid grid-cols-2 gap-4">
@@ -192,36 +187,32 @@ export function SettingsForm({
             />
           </div>
         </div>
-      </section>
+      </TrackSection>
 
-      <section className="card space-y-4 p-4">
-        <h2 className="font-semibold">Favorite proteins</h2>
-        <p className="text-xs text-neutral-400">
-          Selected by default each week on the intake form&apos;s protein picker - still fully
-          overridable per week.
-        </p>
-        <div className="flex flex-wrap gap-2">
+      <TrackSection color="ink" label="Proteins">
+        <div>
+          <h2 className="section-title text-base">Favorite proteins</h2>
+          <p className="mt-1 text-xs text-ink-500">
+            Selected by default each week on the intake form&apos;s protein picker - still fully
+            overridable per week.
+          </p>
+        </div>
+        <div className="flex flex-wrap gap-2.5">
           {proteinTypes.map((protein) => (
-            <button
+            <Chip
               key={protein}
-              type="button"
+              label={protein}
+              active={form.favoriteProteins.includes(protein)}
               onClick={() => toggleProtein(protein)}
-              className={`rounded-full border px-3.5 py-1.5 text-sm ${
-                form.favoriteProteins.includes(protein)
-                  ? "border-brand-600 bg-brand-600 text-white"
-                  : "border-neutral-300 text-neutral-700"
-              }`}
-            >
-              {protein}
-            </button>
+            />
           ))}
         </div>
-      </section>
+      </TrackSection>
 
       <button type="submit" className="btn-primary w-full" disabled={saving}>
         {saving ? "Saving..." : "Save settings"}
       </button>
-      {saved && <p className="text-center text-sm text-brand-600">Saved.</p>}
+      {saved && <p className="text-center text-sm text-sage-600">Saved.</p>}
     </form>
   );
 }
