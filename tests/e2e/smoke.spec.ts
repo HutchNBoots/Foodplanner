@@ -25,7 +25,15 @@ test("full flow: login -> intake -> generate (mocked) -> recipes -> shopping lis
   // be caught - what matters is it always lands on the ready state, via
   // either an immediate render or the status-polling refresh.
   await expect(page).toHaveURL(/\/plan\/[^/]+$/);
-  await expect(page.getByText("Batch-cooked chicken tray bake")).toBeVisible({ timeout: 20_000 });
+
+  // Days are collapsed by default (MVP 1.3 follow-up, see DECISIONS.md) - the
+  // day summary is visible while collapsed, but the meal card underneath
+  // isn't until it's opened. `.click()` auto-waits, which also covers the
+  // generating -> ready transition described above. Scoped to
+  // `[data-testid="day-section"]` since `WeekNutritionSummary` above it on
+  // the page is also a collapsed `<details>`.
+  await page.getByTestId("day-section").first().locator("summary").first().click({ timeout: 20_000 });
+  await expect(page.getByText("Batch-cooked chicken tray bake")).toBeVisible();
 
   // Recipe view: ingredients/method are visible and macros are rendered.
   await expect(page.getByText("kcal").first()).toBeVisible();
