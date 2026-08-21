@@ -283,8 +283,9 @@ export function IntakeForm({
             />
           </div>
           <p className="mt-2 text-xs text-ink-500">
-            Favours ingredients with recognised cholesterol-lowering properties this week (oats, oily fish, nuts,
-            legumes, olive oil...) - qualifying ingredients are marked with ♥ on the recipe.
+            Favours ingredients with recognised cholesterol-lowering properties (oats, oily fish, nuts, legumes,
+            olive oil...) and lower-saturated-fat choices (low-fat dairy, lean/trimmed meat, skinless poultry...)
+            this week - qualifying ingredients are marked on the recipe.
           </p>
         </div>
       </TrackSection>

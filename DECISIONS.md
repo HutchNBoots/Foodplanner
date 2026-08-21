@@ -833,3 +833,35 @@ intake toggle, not a Settings default; both bias generation and label ingredient
   (`src/lib/db/schema.ts`) keeps this field **optional** instead, since weeks generated before this
   shipped won't have it in their stored `ingredients_json` - `IngredientLine` treats missing as
   "no badge", not an error.
+
+## Saturated fat: extended the cholesterol toggle rather than a new one
+
+Operator asked to also lower saturated fat (e.g. low-fat/no-fat yoghurt) and whether that needed a
+new button. Answered directly rather than re-opening `AskUserQuestion`, since the nutrition case is
+clear-cut: standard cholesterol-lowering dietary guidance (NHS/AHA) already bundles "eat less
+saturated fat" and "eat more soluble-fibre/unsaturated-fat foods" as one piece of advice, not two -
+so **no new toggle**. The existing `lowerCholesterol` intake flag now biases generation toward both
+qualities at once (see `buildUserPrompt`'s bias line), and its chip's description text in
+`IntakeForm.tsx` was reworded to say so, rather than adding a second chip for what's really the same
+underlying "heart-healthy this week" request.
+
+- **`lowSaturatedFat: boolean` added to `ingredientSchema`** (`src/lib/claude/schema.ts`), same
+  required-field treatment as `cholesterolLowering` and for the same reason (an honest,
+  evidence-based property of the ingredient, always set, not gated on that week's toggle) - low-fat/
+  fat-free dairy, lean/trimmed cuts, skinless poultry, egg whites, or an unsaturated-fat swap like
+  olive oil for butter.
+- **Tracked and badged as a separate fact from `cholesterolLowering`, not folded into it** - the two
+  are correlated but not the same property (low-fat yoghurt is low in saturated fat but has no
+  cholesterol-lowering property of its own; oily fish is both; oats are cholesterol-lowering but not
+  meaningfully a "fat" ingredient at all). An ingredient can be either, both, or neither, so each
+  needed its own boolean and its own icon rather than collapsing to one "heart-healthy: yes/no" flag.
+- **Icon choice**: an outline droplet-with-a-slash SVG (`IngredientLine.tsx`'s `LowFatIcon`), not a
+  second emoji or a reused/recolored heart - deliberately a different *shape* (outline vs. the ♥
+  glyph's filled shape) so the two badges read as distinct at a glance before a reader gets to the
+  tooltip text, same reasoning the MVP 1.3 pass used for track colors carrying one meaning each. A
+  custom inline SVG (not emoji) to stay consistent with the app's existing icon pattern (the
+  chevrons/checkmarks already in `TabStrip`/`Chip`/`CollapsibleTrackSection`) and avoid the
+  cross-platform emoji-rendering inconsistency flagged against `NavBar`'s icons in MVP 1.3.
+- Same required-field ripple as the cholesterol toggle, smaller this time (`cholesterolLowering` was
+  already threaded through every fixture) - `mock.ts` and two `tests/unit/*.test.ts` ingredient
+  literals needed `lowSaturatedFat` added.
