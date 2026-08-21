@@ -58,8 +58,8 @@ export function buildMockWeekPlan(params: {
           servingsAdults: 2,
           servingsKids: 0,
           ingredients: [
-            { name: "chicken breast", quantity: 400, unit: "g", aisle: "Meat & fish" },
-            { name: "mixed vegetables", quantity: 300, unit: "g", aisle: "Fresh produce" },
+            { name: "chicken breast", quantity: 400, unit: "g", aisle: "Meat & fish", cholesterolLowering: false },
+            { name: "mixed vegetables", quantity: 300, unit: "g", aisle: "Fresh produce", cholesterolLowering: true },
           ],
           method: ["Preheat the oven.", "Roast everything together.", "Serve."],
           macrosPerAdultPortion: { kcal: 520, proteinG: 38, carbsG: 40, fatG: 18, fibreG: 8 },
@@ -95,8 +95,8 @@ function adultBreakfast(dayIndex: number): MealPlanItem {
     servingsAdults: 2,
     servingsKids: 0,
     ingredients: [
-      { name: "eggs", quantity: 4, unit: null, aisle: "Chilled & dairy" },
-      { name: "bread", quantity: 1, unit: "loaf", aisle: "Bakery" },
+      { name: "eggs", quantity: 4, unit: null, aisle: "Chilled & dairy", cholesterolLowering: false },
+      { name: "bread", quantity: 1, unit: "loaf", aisle: "Bakery", cholesterolLowering: false },
     ],
     method: ["Toast the bread.", "Scramble the eggs.", "Serve together."],
     macrosPerAdultPortion: { kcal: 380, proteinG: 24, carbsG: 30, fatG: 18, fibreG: 4 },
@@ -113,8 +113,8 @@ function familyMeal(slot: "breakfast" | "lunch" | "dinner", title: string): Meal
     servingsAdults: 2,
     servingsKids: 2,
     ingredients: [
-      { name: "eggs", quantity: 6, unit: null, aisle: "Chilled & dairy" },
-      { name: "bread", quantity: 1, unit: "loaf", aisle: "Bakery" },
+      { name: "eggs", quantity: 6, unit: null, aisle: "Chilled & dairy", cholesterolLowering: false },
+      { name: "bread", quantity: 1, unit: "loaf", aisle: "Bakery", cholesterolLowering: false },
     ],
     method: ["Prepare everything together.", "Serve family-style."],
     macrosPerAdultPortion: { kcal: 600, proteinG: 30, carbsG: 55, fatG: 25, fibreG: 6 },
@@ -135,8 +135,8 @@ function kidsMeal(slot: "breakfast" | "lunch" | "dinner", title: string, dayInde
     servingsAdults: 0,
     servingsKids: 2,
     ingredients: [
-      { name: "pasta", quantity: 150, unit: "g", aisle: "Store cupboard" },
-      { name: "pesto", quantity: 2, unit: "tbsp", aisle: "Store cupboard" },
+      { name: "pasta", quantity: 150, unit: "g", aisle: "Store cupboard", cholesterolLowering: false },
+      { name: "pesto", quantity: 2, unit: "tbsp", aisle: "Store cupboard", cholesterolLowering: false },
     ],
     method: ["Cook the pasta.", "Stir through the sauce.", "Serve."],
     macrosPerAdultPortion: { kcal: 350, proteinG: 12, carbsG: 45, fatG: 12, fibreG: 4 },

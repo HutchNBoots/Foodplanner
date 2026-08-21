@@ -15,6 +15,11 @@ export const ingredientSchema = z.object({
   quantity: z.number().nullable().describe("Numeric quantity for this meal, e.g. 400. Null if not quantifiable (e.g. 'salt, to taste')."),
   unit: z.string().nullable().describe("Unit for the quantity, e.g. 'g', 'ml', 'tin', 'clove'. Null if quantity is null."),
   aisle: z.enum(AISLES).describe("Supermarket aisle this ingredient is found in."),
+  cholesterolLowering: z
+    .boolean()
+    .describe(
+      "True only if this specific ingredient has recognised LDL-cholesterol-lowering properties (e.g. oats, oily fish, nuts, seeds, legumes/beans/lentils, olive oil, soluble-fibre fruit/veg like apples or citrus, soy) - an evidence-based property of the ingredient itself, not a reflection of whether this week asked for a cholesterol-lowering focus.",
+    ),
 });
 
 export const macrosSchema = z.object({

@@ -44,6 +44,9 @@ export const weekIntakeSchema = z.object({
   budget: z.string().default(""),
   effort: z.enum(["quick", "mixed", "more_cooking"]),
   notes: z.string().default(""),
+  // Per-week cholesterol-lowering focus toggle (see DECISIONS.md) - defaults
+  // off if the client ever omits it, same pattern as every other toggle here.
+  lowerCholesterol: z.boolean().default(false),
 });
 
 export type WeekIntakeInput = z.infer<typeof weekIntakeSchema>;

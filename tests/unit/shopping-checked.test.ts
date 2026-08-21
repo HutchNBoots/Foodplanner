@@ -35,6 +35,7 @@ describe("setShoppingItemChecked", () => {
       budget: "",
       effort: "mixed",
       notes: "",
+      lowerCholesterol: false,
     });
 
     const [item] = await db

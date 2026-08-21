@@ -119,6 +119,10 @@ export function IntakeForm({
     dinner: true,
   });
   const [selectedStyles, setSelectedStyles] = useState<string[]>([]);
+  // Per-week cholesterol-lowering focus toggle - biases generation toward
+  // ingredients with recognised LDL-cholesterol-lowering properties, shown
+  // as a heart-icon badge on qualifying ingredients (see DECISIONS.md).
+  const [lowerCholesterol, setLowerCholesterol] = useState(false);
   // Defaults from the household's favorite proteins (MVP 2.1, see
   // DECISIONS.md) instead of always defaulting to every protein - still
   // fully overridable per week.
@@ -166,6 +170,7 @@ export function IntakeForm({
         budget,
         effort,
         notes,
+        lowerCholesterol,
       }),
     });
 
@@ -267,6 +272,20 @@ export function IntakeForm({
               (warm-weather default) - pick it anyway if you want it.
             </p>
           )}
+        </div>
+        <div>
+          <span className="label">Nutrition focus</span>
+          <div className="flex flex-wrap gap-2.5">
+            <Chip
+              label="♥ Lower cholesterol"
+              active={lowerCholesterol}
+              onClick={() => setLowerCholesterol((v) => !v)}
+            />
+          </div>
+          <p className="mt-2 text-xs text-ink-500">
+            Favours ingredients with recognised cholesterol-lowering properties this week (oats, oily fish, nuts,
+            legumes, olive oil...) - qualifying ingredients are marked with ♥ on the recipe.
+          </p>
         </div>
       </TrackSection>
 

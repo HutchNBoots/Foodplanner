@@ -20,7 +20,7 @@ const validPlan = {
           title: "Chicken tray bake",
           servingsAdults: 2,
           servingsKids: 0,
-          ingredients: [{ name: "chicken breast", quantity: 400, unit: "g", aisle: "Meat & fish" }],
+          ingredients: [{ name: "chicken breast", quantity: 400, unit: "g", aisle: "Meat & fish", cholesterolLowering: false }],
           method: ["Preheat the oven.", "Roast for 25 minutes."],
           macrosPerAdultPortion: { kcal: 520, proteinG: 38, carbsG: 40, fatG: 18, fibreG: 8 },
           photoQuery: "chicken tray bake",

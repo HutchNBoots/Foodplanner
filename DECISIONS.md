@@ -792,3 +792,44 @@ merged commit.
   above the day list, so the smoke test's original `page.locator("details summary").first()` now
   hits the wrong element - the day sections got `data-testid="day-section"` so the test can target
   them unambiguously (see `tests/e2e/smoke.spec.ts`).
+
+## Cholesterol-lowering focus toggle
+
+Operator-requested feature, not a bug fix or visual tweak - a per-week intake toggle that (a) biases
+generation toward ingredients with recognised LDL-cholesterol-lowering properties and (b) marks
+qualifying ingredients with a ♥ badge on the recipe, confirmed via `AskUserQuestion` (per-week
+intake toggle, not a Settings default; both bias generation and label ingredients, not display-only).
+
+- **`cholesterolLowering: boolean` added to `ingredientSchema`** (`src/lib/claude/schema.ts`) as a
+  **required** field, not optional/defaulted - Claude sets it honestly on every ingredient in every
+  meal regardless of whether that week's toggle is on, per explicit system-prompt instruction (see
+  `buildSystemPrompt`). Required rather than optional so the model can't silently omit it; this is
+  the same "evidence-based property of the ingredient" framing used for `aisle`, not a per-week flag
+  - a week with the toggle off can still show ♥ on an oily-fish dinner if that's just what got
+    generated.
+- **`intake.lowerCholesterol: boolean`** added to `weekIntakeSchema` (default `false`) and the
+  `WeekIntake` type - when true, `buildUserPrompt` adds one line telling Claude to actively favour
+  cholesterol-lowering ingredients this week "without abandoning the dish styles/proteins/effort
+  requested above" (i.e. a bias, not an override of everything else asked for).
+- **UI**: a single `Chip` ("♥ Lower cholesterol") in the intake form's existing "This week"
+  `TrackSection`, next to dish styles - a boolean toggle didn't warrant its own index-tab cluster.
+  `IngredientLine.tsx` renders a small ♥ (sage-colored, `title`/`aria-label` for the tooltip and
+  screen readers) after any ingredient where `cholesterolLowering` is true, on every week's recipes,
+  not gated on that week's toggle having been on.
+- **Scoped to the recipe ingredient list only, not the shopping list** - `aggregate.ts`'s
+  shopping-list dedupe already collapses per-meal ingredient objects down to `productName`/quantity
+  by name, discarding other per-ingredient fields; carrying `cholesterolLowering` through there too
+  is a reasonable follow-up but wasn't asked for and adds aggregation-merge-semantics complexity
+  (what happens if the same product name shows up both flagged and unflagged across meals) that
+  didn't seem worth guessing at unprompted.
+- **Required-field ripple**: making the Claude-schema field required (not optional/defaulted) meant
+  every hand-written `Ingredient`/`MealPlanItem` object literal typed against it needed the field
+  added - `src/lib/claude/mock.ts`, `scripts/eval-method-steps.ts`, and the `WeekIntake`-typed
+  fixtures in `tests/unit/{mvp12-generation-integration,mvp21-meal-times-and-override,
+  retry-generation,shopping-checked,system-prompt,week-ordering,leftover-cap,claude-schema}.test.ts`
+  all got `cholesterolLowering: false` (or `true` on the mock's "mixed vegetables", to give the
+  heart badge something real to render in mocked/e2e runs) - mechanical, not a design decision, but
+  worth noting since it touched a lot of files for one added field. The DB-side `Ingredient` type
+  (`src/lib/db/schema.ts`) keeps this field **optional** instead, since weeks generated before this
+  shipped won't have it in their stored `ingredients_json` - `IngredientLine` treats missing as
+  "no badge", not an error.
