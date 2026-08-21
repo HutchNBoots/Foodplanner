@@ -15,7 +15,8 @@ function baseIntake(overrides: Partial<WeekIntake> = {}): WeekIntake {
     budget: "",
     effort: "mixed",
     notes: "",
-    goal: "lose_weight",
+    energyDirection: "lose_weight",
+    focuses: [],
     ...overrides,
   };
 }
@@ -61,10 +62,12 @@ describe("buildUserPrompt protein handling", () => {
 });
 
 // Backlog item: Goals selector (see REQUIREMENTS.md, DECISIONS.md's "Goals
-// selector" entry) - replaces the old lowerCholesterol boolean with a 4-way
-// goal that drives the adult-track nutrition framing per week.
+// selector: two-axis redesign" entry) - a single-select calorie direction
+// plus zero-or-more stackable nutrition focuses, replacing the original
+// single 4-way goal enum (which itself replaced the old lowerCholesterol
+// boolean).
 describe("buildUserPrompt nutrition goal framing", () => {
-  it("states the lose-weight framing by default", () => {
+  it("states the lose-weight direction framing by default, with no focus", () => {
     const prompt = buildUserPrompt({
       weekStartDate: "2026-08-03",
       intake: baseIntake(),
@@ -80,7 +83,7 @@ describe("buildUserPrompt nutrition goal framing", () => {
   it("states the build-muscle framing without deficit language", () => {
     const prompt = buildUserPrompt({
       weekStartDate: "2026-08-03",
-      intake: baseIntake({ goal: "build_muscle" }),
+      intake: baseIntake({ energyDirection: "build_muscle" }),
       recentTitles: [],
       recentFeedback: [],
       freezerInventory: [],
@@ -90,29 +93,59 @@ describe("buildUserPrompt nutrition goal framing", () => {
     expect(prompt).toContain("NOT a deficit");
   });
 
-  it("states the reduce-cholesterol framing with cholesterol-lowering ingredients called out", () => {
+  it("states the reduce-cholesterol focus framing with cholesterol-lowering ingredients called out", () => {
     const prompt = buildUserPrompt({
       weekStartDate: "2026-08-03",
-      intake: baseIntake({ goal: "reduce_cholesterol" }),
+      intake: baseIntake({ focuses: ["reduce_cholesterol"] }),
       recentTitles: [],
       recentFeedback: [],
       freezerInventory: [],
     });
 
-    expect(prompt).toContain("This week's nutrition goal: Reduce cholesterol.");
+    expect(prompt).toContain("This week's nutrition goal: Lose weight + Reduce cholesterol.");
     expect(prompt).toContain("LDL-cholesterol-lowering properties");
   });
 
-  it("scopes the goal to adult meals only, not kids or family-occasion meals", () => {
+  it("states the increase-protein focus framing regardless of direction, and can stack with reduce-cholesterol", () => {
+    const promptOnDeficit = buildUserPrompt({
+      weekStartDate: "2026-08-03",
+      intake: baseIntake({ energyDirection: "lose_weight", focuses: ["increase_protein"] }),
+      recentTitles: [],
+      recentFeedback: [],
+      freezerInventory: [],
+    });
+    const promptOnSurplus = buildUserPrompt({
+      weekStartDate: "2026-08-03",
+      intake: baseIntake({ energyDirection: "build_muscle", focuses: ["increase_protein"] }),
+      recentTitles: [],
+      recentFeedback: [],
+      freezerInventory: [],
+    });
+
+    expect(promptOnDeficit).toContain("Prioritise higher-protein choices");
+    expect(promptOnSurplus).toContain("Prioritise higher-protein choices");
+
+    const stacked = buildUserPrompt({
+      weekStartDate: "2026-08-03",
+      intake: baseIntake({ focuses: ["increase_protein", "reduce_cholesterol"] }),
+      recentTitles: [],
+      recentFeedback: [],
+      freezerInventory: [],
+    });
+
+    expect(stacked).toContain("This week's nutrition goal: Lose weight + Increase protein + Reduce cholesterol.");
+  });
+
+  it("scopes direction and focuses to adult meals only, not kids or family-occasion meals", () => {
     const prompt = buildUserPrompt({
       weekStartDate: "2026-08-03",
-      intake: baseIntake({ goal: "reduce_cholesterol" }),
+      intake: baseIntake({ focuses: ["reduce_cholesterol"] }),
       recentTitles: [],
       recentFeedback: [],
       freezerInventory: [],
     });
 
     expect(prompt).toContain("NOT to the kids track");
-    expect(prompt).toContain('NOT to family-occasion meals (always "Balanced"');
+    expect(prompt).toContain('NOT to family-occasion meals (always "Balanced" with no focuses');
   });
 });

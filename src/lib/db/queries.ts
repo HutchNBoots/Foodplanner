@@ -7,10 +7,11 @@ import {
   meals,
   shoppingItems,
   weeks,
+  type EnergyDirection,
   type FeedbackRating,
-  type Goal,
   type Ingredient,
   type LeftoverRef,
+  type NutritionFocus,
   type UsedInRef,
   type WeekIntake,
 } from "./schema";
@@ -48,7 +49,8 @@ export async function updateHousehold(
     store: string;
     budgetDefault: string | null;
     favoriteProteins: string[];
-    goal: Goal;
+    energyDirection: EnergyDirection;
+    focuses: NutritionFocus[];
   }>,
 ) {
   const updated = await db

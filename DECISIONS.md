@@ -1133,3 +1133,81 @@ Both stay as ⬜ backlog items rather than being removed - they're still real, s
 blocked on a decision outside this session's scope. Revisit either by asking the operator to pick a
 direction first (auth model for the first, delivery channel for the second), then treat it as its own
 scoped feature the same way Goals/Swap/Freezer were.
+
+## Goals selector: two-axis redesign
+
+Operator feedback shortly after the Goals selector above shipped: *"you can build muscle and loose
+weight by focusing on protein - can you review that feature and make it it's own section - perhaps
+it should be increase protein - can you research on web please and brainstorm a better goals
+section."* This is a real correction, not a preference tweak - the original single 4-way `Goal` enum
+(Lose weight / Build muscle / Balanced / Reduce cholesterol) conflated two things that don't actually
+compete with each other.
+
+**Research first, before touching any code** (web search, cited in the sources given to the operator
+in chat):
+- The 2025-2030 US Dietary Guidelines moved to 1.2-1.6g protein/kg bodyweight/day (up from 0.8g,
+  unchanged for 70+ years); ACSM/AND/Dietitians of Canada recommend 1.2-2.0g/kg for anyone training,
+  "to optimize recovery... and promote the growth and maintenance of lean mass."
+- Protein >1.3g/kg/day is associated with increased muscle mass; <1.0g/kg/day with a higher risk of
+  muscle mass decline - i.e. the SAME high-protein target that builds muscle in a surplus also
+  *prevents muscle loss* in a deficit.
+- Higher protein intake during a deficit measurably improves satiety (less hunger, easier adherence)
+  and better preserves lean mass than an equivalent deficit at lower protein.
+- Precedent from established macro-tracking apps (MyFitnessPal, MacroFactor, Cronometer): all treat
+  "high protein" as an independent modifier layered on top of a calorie goal, not a goal unto itself.
+
+**Conclusion**: protein isn't a competing goal alongside "lose weight" and "build muscle" - it's the
+evidence-based mechanism behind BOTH of them. The old enum forced a false choice (pick "Build muscle"
+*or* get the cholesterol guidance, never both; no way to say "lose weight and eat more protein while
+I'm at it" even though that's the single best-supported combination in the research above).
+
+**Redesign - two independent axes, presented to the operator as a specific recommendation before any
+code was touched** (confirmed via `AskUserQuestion` against a documented alternative: just bolting on
+a 5th mutually-exclusive "Increase protein" option, which would have preserved the same underlying
+conflation):
+- **`EnergyDirection`** (single-select, unchanged in kind from before): `lose_weight` | `balanced` |
+  `build_muscle`. Purely the calorie-direction question - deficit, neutral, or surplus/maintenance.
+  No longer says anything about protein.
+- **`NutritionFocus[]`** (multi-select, new): `increase_protein` | `reduce_cholesterol`. Stackable on
+  top of any direction, because neither has a real relationship to calorie direction -
+  `increase_protein` is the same guidance whether the week is in deficit or surplus,
+  `reduce_cholesterol` never had one either (it's about LDL/saturated fat, orthogonal to weight).
+  This also fixes a real gap in the old design: a household can now combine "Lose weight" with
+  "Reduce cholesterol" in one week, which the old single-enum design couldn't express at all.
+- `households.goal` (single text column) → `households.energyDirection` + `households.focuses`
+  (jsonb array, same storage pattern as `favoriteProteins`). `WeekIntake.goal` → `WeekIntake.energyDirection`
+  + `WeekIntake.focuses`, same per-week-override-of-a-household-default pattern as everything else on
+  that type.
+- **Migration `0006`** backfills every existing household's old `goal` value losslessly rather than
+  just defaulting everyone back to `lose_weight`: `reduce_cholesterol` → `energyDirection: "balanced"`
+  + `focuses: ["reduce_cholesterol"]` (it never had a direction opinion, so "balanced" is the neutral
+  read); the other three values map straight across with `focuses: []`. Historical weeks'
+  `weeks.intakeJson.goal` (the raw JSON blob of what was actually sent to Claude at generation time)
+  is left untouched - nothing in the app re-reads that field for an already-generated week, so
+  rewriting historical JSON would be pure risk for zero behavioural benefit. Hit the same non-TTY
+  `drizzle-kit generate` interactive-rename-resolver gotcha as MVP 1.2's column rename (see that
+  entry) since dropping one column and adding two looks rename-shaped to its heuristic - same
+  workaround: `drizzle-kit generate --custom` for a correctly-chained empty file, hand-write the SQL,
+  hand-patch `meta/0006_snapshot.json`, verify with a plain `generate` reporting "No schema changes."
+- **System prompt**: `GOAL_FRAMING`/`GOAL_LABEL` (one string per enum value) split into
+  `DIRECTION_FRAMING`/`DIRECTION_LABEL` (3 entries, calorie framing only, no protein numbers) and
+  `FOCUS_FRAMING`/`FOCUS_LABEL` (2 entries). `increase_protein`'s framing explicitly cites the
+  research above (roughly 1.2-2.0g/kg/day, ~30-45g per adult portion) and states it applies
+  "regardless of this week's calorie direction." A `nutritionFramingText(direction, focuses)` /
+  `nutritionLabel(direction, focuses)` pair combines the two axes into one paragraph/label, shared by
+  `buildUserPrompt` and `buildSwapMealUserPrompt` so both stay consistent. Kids track and
+  family-occasion meals still always get "Balanced" with zero focuses, unchanged from before - the
+  reasoning (kids eat family-occasion meals too, an adult-specific focus has no place there) didn't
+  change, only the shape of what's being excluded did.
+- **UI**: the 3-option direction now fits a single `TabStrip` row (the original 4-way enum's awkward
+  two-stacked-2-item-row workaround, documented in the prior "Goals selector" entry, is gone - not
+  because that workaround was wrong, but because the redesign incidentally dropped the option count
+  back under `TabStrip`'s comfortably-tested 2-3-item range). Focuses render as ordinary multi-select
+  `Chip`s, the same control already used for dish styles/proteins/avoid-repeat - no new component
+  needed. Same household-default-with-per-week-override pattern in both `SettingsForm` and
+  `IntakeForm` as before.
+- Verified end-to-end with Playwright against the mocked dev server: selecting Build muscle + both
+  focuses in Settings, saving, reloading, and confirming both the direction tab and both focus chips'
+  `aria-pressed` state persist; the Intake form defaulting to the saved direction on next visit; and
+  submitting a week with a non-default direction+focuses combination reaching `/api/generate`
+  successfully (202, weekId returned).

@@ -10,10 +10,13 @@ export const PROTEIN_TYPES = [
   "Plant-based",
 ] as const;
 
-// Nutrition goal (backlog item, see DECISIONS.md's "Goals selector" entry) -
-// folds in what used to be a separate "Lower cholesterol" toggle as
-// "reduce_cholesterol", per the nutritionist review's recommendation.
-export const GOALS = ["lose_weight", "build_muscle", "balanced", "reduce_cholesterol"] as const;
+// Nutrition goal, two independent axes (see DECISIONS.md's "Goals selector:
+// two-axis redesign" entry). Calorie direction is single-select...
+export const ENERGY_DIRECTIONS = ["lose_weight", "balanced", "build_muscle"] as const;
+// ...food-quality focuses are zero-or-more and apply regardless of
+// direction - protein supports both weight loss and muscle building, and
+// cholesterol-lowering has no relationship to calorie direction at all.
+export const NUTRITION_FOCUSES = ["increase_protein", "reduce_cholesterol"] as const;
 
 // The three family meal occasions (MVP 1.2, see DECISIONS.md) - Saturday
 // breakfast has no "bbq" option (a BBQ breakfast doesn't make sense), the
@@ -50,8 +53,9 @@ export const weekIntakeSchema = z.object({
   effort: z.enum(["quick", "mixed", "more_cooking"]),
   notes: z.string().default(""),
   // Defaults to the same framing v1's hardcoded nutrition rule always used
-  // (see DECISIONS.md) if the client ever omits it.
-  goal: z.enum(GOALS).default("lose_weight"),
+  // (see DECISIONS.md) if the client ever omits either field.
+  energyDirection: z.enum(ENERGY_DIRECTIONS).default("lose_weight"),
+  focuses: z.array(z.enum(NUTRITION_FOCUSES)).default([]),
 });
 
 export type WeekIntakeInput = z.infer<typeof weekIntakeSchema>;

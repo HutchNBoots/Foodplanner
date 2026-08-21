@@ -42,15 +42,23 @@ export const households = pgTable("households", {
     .$defaultFn(() => [...PROTEIN_TYPES]),
   store: text("store").notNull().default("Sainsbury's"),
   budgetDefault: text("budget_default"),
-  /** Household default nutrition goal (backlog item, see DECISIONS.md's
-   * "Goals selector" entry) - drives adult/family-occasion meal framing,
-   * fully overridable per week in the intake form (same pattern as
-   * `favoriteProteins`/`budgetDefault`). Defaults to "lose_weight" so
-   * existing households see no change in behaviour - that's what v1's
-   * hardcoded "moderate deficit, high protein" framing already was. Never
-   * applied to the kids track, and family-occasion meals always use
-   * "balanced" regardless of this setting (kids eat those too). */
-  goal: text("goal").notNull().default("lose_weight").$type<Goal>(),
+  /** Household default nutrition direction (see DECISIONS.md's "Goals
+   * selector: two-axis redesign" entry) - drives adult/family-occasion meal
+   * calorie framing, fully overridable per week in the intake form (same
+   * pattern as `favoriteProteins`/`budgetDefault`). Defaults to
+   * "lose_weight" so existing households see no change in behaviour - that's
+   * what v1's hardcoded "moderate deficit, high protein" framing already
+   * was. Never applied to the kids track, and family-occasion meals always
+   * use "balanced" regardless of this setting (kids eat those too). */
+  energyDirection: text("energy_direction").notNull().default("lose_weight").$type<EnergyDirection>(),
+  /** Household default nutrition focuses - independent of `energyDirection`
+   * (see DECISIONS.md), since protein applies equally to a deficit or a
+   * surplus and cholesterol-lowering has no relationship to calorie
+   * direction at all. Zero or more, fully overridable per week. */
+  focuses: jsonb("focuses")
+    .notNull()
+    .$type<NutritionFocus[]>()
+    .$defaultFn(() => []),
   createdAt: createdAt(),
   updatedAt: text("updated_at")
     .notNull()
@@ -224,12 +232,22 @@ export type ImageCredit = { photographerName: string; photographerUrl: string; u
 
 export type FeedbackRating = "loved" | "too_much_effort" | "too_bland" | "repeat";
 
-/** Nutrition goal (backlog item, see DECISIONS.md's "Goals selector" entry) -
- * single-select, drives adult/family-occasion meal framing in the system
- * prompt. Folds in what used to be a separate `lowerCholesterol` toggle as
- * "reduce_cholesterol" - nutritionist review recommended one choice rather
- * than two overlapping controls. Never applied to the kids track. */
-export type Goal = "lose_weight" | "build_muscle" | "balanced" | "reduce_cholesterol";
+/** Calorie-direction axis of the nutrition goal (see DECISIONS.md's "Goals
+ * selector: two-axis redesign" entry) - single-select, since a week can only
+ * be in one calorie direction at a time. Drives adult/family-occasion meal
+ * framing in the system prompt. Never applied to the kids track. */
+export type EnergyDirection = "lose_weight" | "balanced" | "build_muscle";
+
+/** Food-quality-focus axis of the nutrition goal - independent of
+ * `EnergyDirection` and stackable (zero or more at once). Replaces the
+ * original single 4-way `Goal` enum: research showed higher protein is the
+ * evidence-based mechanism behind BOTH weight loss (satiety, muscle
+ * preservation in a deficit) and muscle building (the muscle-protein-
+ * synthesis stimulus), so it isn't actually a competing goal alongside
+ * them - it's a focus that applies regardless of calorie direction. Same
+ * reasoning extends "reduce_cholesterol" to be combinable with any
+ * direction rather than mutually exclusive with it. */
+export type NutritionFocus = "increase_protein" | "reduce_cholesterol";
 
 /** The three family meal occasions (MVP 1.2, see DECISIONS.md) - replaces
  * MVP1's single `sundayMode`. `satBreakfast` has no "bbq" option (see
@@ -260,8 +278,11 @@ export type WeekIntake = {
   budget: string;
   effort: "quick" | "mixed" | "more_cooking";
   notes: string;
-  /** This week's resolved nutrition goal (see `Goal` above) - pre-filled from
-   * the household default, fully overridable per week, same pattern as
-   * `proteins`/`budget`. */
-  goal: Goal;
+  /** This week's resolved nutrition direction (see `EnergyDirection` above) -
+   * pre-filled from the household default, fully overridable per week, same
+   * pattern as `proteins`/`budget`. */
+  energyDirection: EnergyDirection;
+  /** This week's resolved nutrition focuses (see `NutritionFocus` above) -
+   * pre-filled from the household default, fully overridable per week. */
+  focuses: NutritionFocus[];
 };

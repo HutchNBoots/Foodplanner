@@ -27,7 +27,8 @@ const sampleIntake = {
   budget: "",
   effort: "mixed" as const,
   notes: "",
-  goal: "lose_weight" as const,
+  energyDirection: "lose_weight" as const,
+  focuses: [],
 };
 
 describe("week ordering when weekStartDate is duplicated", () => {
