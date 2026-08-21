@@ -1,5 +1,5 @@
 import type { households } from "@/lib/db/schema";
-import type { Goal, MealTimesNeeded, WeekIntake } from "@/lib/db/schema";
+import type { EnergyDirection, MealTimesNeeded, NutritionFocus, WeekIntake } from "@/lib/db/schema";
 import { isWarmMonth } from "@/lib/season";
 import { PROTEIN_TYPES } from "@/lib/intake";
 import { MAX_LEFTOVER_SLOTS } from "./schema";
@@ -12,31 +12,67 @@ const OCCASION_MODE_LABEL: Record<string, string> = {
   skip: "no special family meal - treat that slot normally instead (see below)",
 };
 
-/** Goal-conditional adult/family nutrition framing (backlog item, see
- * DECISIONS.md's "Goals selector" entry) - replaces v1's single hardcoded
- * "moderate deficit, high protein" rule. Folds in what used to be a
- * separate `lowerCholesterol` toggle as "reduce_cholesterol". Never applied
- * to the kids track (always its own balanced, age-appropriate framing) and
- * never applied to family-occasion meals either (always "balanced" - see
- * `buildUserPrompt`), regardless of which goal the household/week selected,
- * since kids eat those too. */
-const GOAL_FRAMING: Record<Goal, string> = {
+/** Two-axis nutrition goal (see DECISIONS.md's "Goals selector: two-axis
+ * redesign" entry) - replaces the original single 4-way `Goal` enum.
+ * Calorie direction (this record) is single-select and covers ONLY the
+ * deficit/surplus/neutral question - it deliberately says nothing about
+ * protein anymore, since research shows higher protein is the evidence-based
+ * mechanism behind both weight loss (satiety, muscle preservation in a
+ * deficit) and muscle building (the muscle-protein-synthesis stimulus), not
+ * a property of one direction - that lives in `FOCUS_FRAMING.increase_protein`
+ * instead, stackable on any direction. Never applied to the kids track
+ * (always its own balanced, age-appropriate framing) and never applied to
+ * family-occasion meals either (always "balanced", no focuses - see
+ * `buildUserPrompt`), regardless of what the household/week selected, since
+ * kids eat those too. */
+const DIRECTION_FRAMING: Record<EnergyDirection, string> = {
   lose_weight:
-    "Moderate calorie deficit, high protein (~25-35g per adult on the main meal), high fibre, minimal ultra-processed food. Sustainable, everyday food - not a crash diet. Never suggest or imply a specific weight-loss rate, a target weekly loss, a calorie number per person, or a timeline - this is a fixed, general default, not individualised guidance.",
+    "Moderate calorie deficit. Sustainable, everyday food - not a crash diet. Never suggest or imply a specific weight-loss rate, a target weekly loss, a calorie number per person, or a timeline - this is a fixed, general default, not individualised guidance.",
   build_muscle:
-    "Calories at or slightly above maintenance - NOT a deficit. Higher protein target (~35-45g per adult on the main meal), still high fibre, still minimal ultra-processed food. Never suggest or imply a specific target weight, timeline, or training programme - general everyday food support, not individualised guidance.",
+    "Calories at or slightly above maintenance - NOT a deficit. Never suggest or imply a specific target weight, timeline, or training programme - general everyday food support, not individualised guidance.",
   balanced:
-    "Nutritionally adequate, varied, moderate portions - no deficit or surplus framing, no specific calorie/protein target. Whole foods, high fibre, minimal ultra-processed food.",
-  reduce_cholesterol:
-    "Actively favour ingredients with recognised LDL-cholesterol-lowering properties (oats, oily fish, nuts, seeds, legumes/beans/lentils, olive oil, soluble-fibre fruit/veg, soy) and lower-saturated-fat choices (low-fat/fat-free dairy, lean/trimmed meat, skinless poultry, unsaturated oils like olive oil instead of butter) wherever they fit the meal. Neutral calorie framing - no deficit or surplus - the goal here is LDL/saturated fat, not weight.",
+    "Nutritionally adequate, varied, moderate portions - no deficit or surplus framing, no specific calorie target. Whole foods, minimal ultra-processed food.",
 };
 
-const GOAL_LABEL: Record<Goal, string> = {
+const DIRECTION_LABEL: Record<EnergyDirection, string> = {
   lose_weight: "Lose weight",
   build_muscle: "Build muscle",
   balanced: "Balanced",
+};
+
+/** Food-quality focuses - independent of calorie direction, zero or more at
+ * once (see DECISIONS.md). `increase_protein`'s target (roughly 1.2-2.0g per
+ * kg bodyweight per day) reflects the 2025-2030 US Dietary Guidelines' and
+ * ACSM/AND/Dietitians of Canada's sports-nutrition-consensus range - applies
+ * on top of whichever `DIRECTION_FRAMING` is active, since protein supports
+ * muscle preservation in a deficit exactly as much as muscle growth in a
+ * surplus. */
+const FOCUS_FRAMING: Record<NutritionFocus, string> = {
+  increase_protein:
+    "Prioritise higher-protein choices across adult meals - lean meat, fish, eggs, dairy, legumes, tofu at most meals, aiming toward the higher end of general protein guidance (roughly 1.2-2.0g per kg bodyweight per day per current dietary guidance and sports-nutrition consensus), in practice a generous protein source at most adult meals (roughly 30-45g per adult portion where the dish allows). Applies regardless of this week's calorie direction above - protein supports muscle preservation in a deficit just as much as muscle growth in a surplus. Never suggest or imply an individualised gram target - general everyday guidance, not personalised advice.",
+  reduce_cholesterol:
+    "Actively favour ingredients with recognised LDL-cholesterol-lowering properties (oats, oily fish, nuts, seeds, legumes/beans/lentils, olive oil, soluble-fibre fruit/veg, soy) and lower-saturated-fat choices (low-fat/fat-free dairy, lean/trimmed meat, skinless poultry, unsaturated oils like olive oil instead of butter) wherever they fit the meal.",
+};
+
+const FOCUS_LABEL: Record<NutritionFocus, string> = {
+  increase_protein: "Increase protein",
   reduce_cholesterol: "Reduce cholesterol",
 };
+
+/** Combines a direction + zero-or-more focuses into one framing paragraph
+ * for the prompt - shared by `buildUserPrompt` and `buildSwapMealUserPrompt`
+ * so the two axes are always described consistently. */
+function nutritionFramingText(direction: EnergyDirection, focuses: NutritionFocus[]): string {
+  const parts = [DIRECTION_FRAMING[direction], ...focuses.map((f) => FOCUS_FRAMING[f])];
+  return parts.join(" ");
+}
+
+/** Human-readable label for a direction + focuses combination, e.g. "Lose
+ * weight + Increase protein" or just "Balanced" if no focus is selected. */
+function nutritionLabel(direction: EnergyDirection, focuses: NutritionFocus[]): string {
+  const labels = [DIRECTION_LABEL[direction], ...focuses.map((f) => FOCUS_LABEL[f])];
+  return labels.join(" + ");
+}
 
 /** Renders which meal-times a track needs this week (MVP 2.1, see
  * DECISIONS.md) - e.g. "breakfast, lunch, dinner" or "lunch, dinner (no
@@ -70,7 +106,7 @@ Household context (standing defaults - apply unless the week's specific request 
 - ${household.kidsCount} kids who normally eat separately from the adults, Monday-Saturday (see the "kids track" rules below) - they are NOT part of regular weekday breakfasts/lunches/dinners planned for adults.
 - Three standing family occasions, where adults and kids eat together instead of separately - by default: Saturday breakfast (${OCCASION_MODE_LABEL[household.satBreakfastDefaultMode] ?? household.satBreakfastDefaultMode}), Saturday evening (${OCCASION_MODE_LABEL[household.satEveningDefaultMode] ?? household.satEveningDefaultMode}), and Sunday lunch (${OCCASION_MODE_LABEL[household.sunLunchDefaultMode] ?? household.sunLunchDefaultMode}), with ${household.familyAdults} adults and ${household.familyKids} kids attending - unless the week's request overrides any of these.
 - Supermarket: ${household.store} (UK) - use ingredients realistically stocked there, including their High Protein and Small But Mighty ranges as convenient options, not as the backbone of every meal.
-- Adult-track nutrition framing is driven by this week's selected goal (given in the user message, one of Lose weight / Build muscle / Balanced / Reduce cholesterol) - see that section for the specific rules. This does NOT apply to the kids track (always its own balanced, age-appropriate framing, see below) or to family-occasion meals (always "Balanced" regardless of the selected goal, since kids eat those too - see the user message).
+- Adult-track nutrition framing is driven by this week's selected calorie direction (Lose weight / Balanced / Build muscle) plus zero or more independent focuses (Increase protein, Reduce cholesterol), both given in the user message - see that section for the specific rules. This does NOT apply to the kids track (always its own balanced, age-appropriate framing, see below) or to family-occasion meals (always "Balanced" with no focuses regardless of the week's selections, since kids eat those too - see the user message).
 - Batch-cook proteins/bases and reuse across 2-3 meals in the week where sensible (e.g. a big batch of a protein on Monday, reused as a different meal or explicit leftovers later in the week). Make batch-cook and leftover relationships explicit and correct (the "leftoverFor" days/slots must be real days later in the same week).
 - Vary adult and family-occasion meals week to week - avoid repeating meals from the "recently served" list given in the user message unless the user explicitly asked to keep something. This anti-repeat rule does NOT apply to the kids track - kids meals repeating week to week is fine and expected (see below).
 - Season: it is currently ${isWarmMonth() ? "a warm month" : "a cooler month"} - ${isWarmMonth() ? "avoid heavy hot dishes like soups and stews; prefer salads, bowls, tray bakes, and wraps" : "hearty warming dishes like soups, stews and tray bakes are welcome"}.
@@ -79,8 +115,8 @@ Household context (standing defaults - apply unless the week's specific request 
 Every meal you emit needs a "track" (whose meal it is) and a "slot" (which meal-time):
 
 - **track: "adult"** - the standing adult plan. Which meal-times adults need this week (breakfast/lunch/dinner) is given in the user message - historically adults never got a breakfast, but that's now a per-week choice, not a fixed rule. Weekday lunches (when needed) are frequently a reused batch-cook leftover rather than a newly cooked meal (encouraged, not a fallback).
-- **track: "kids"** - a separate, simple kids plan, Monday-Saturday ONLY (never Sunday - kids only join the Sunday family lunch that day, nothing else is planned for them then). Which meal-times kids need this week (breakfast/lunch/dinner, or none at all - the kids track can be skipped entirely some weeks) is given in the user message. For whichever meal-times ARE needed, plan them on every Mon-Sat day EXCEPT a day/slot that's covered by a family occasion instead (see below - e.g. if Saturday breakfast is a family occasion this week, don't also emit a separate kids breakfast that day). Kids meals should be simple to prepare and skew toward batch-cook-and-freeze (e.g. pasta with pesto, freezer-friendly bakes/traybakes) - repeating a favourite from a previous week is fine and expected, do NOT apply the adult variety/anti-repeat rule against the "recently served" list here. **Within a single week, though, still vary the dish types across slots rather than defaulting to the same one or two go-to recipes for every kids meal** - draw from a real repertoire (e.g. wraps, pasta dishes, simple traybakes, stir-fries, jacket potatoes, omelettes, soups, homemade-style pizza, rice/noodle bowls) so a week's kids meals don't read as one recipe repeated under different names. "Simple" describes the dish and ingredient list, not the method write-up - kids meals still need the same genuinely instructive method steps (temperature, timing, doneness cues, per the method-step rules below) as every other track, written for a parent who isn't already a confident cook, not a shorthand version. Kids meals should reflect balanced, age-appropriate nutrition - do NOT apply the adults' selected goal framing (see the user message) to kids portions, regardless of which goal it is.
-- **track: "family"** - the three shared occasions below, when not skipped. Both servingsAdults and servingsKids should be > 0 (the whole family together). Always use the "Balanced" nutrition framing (see the user message) regardless of which goal this week selected - kids eat these meals too, so an adult-specific deficit/surplus/cholesterol focus never applies here.
+- **track: "kids"** - a separate, simple kids plan, Monday-Saturday ONLY (never Sunday - kids only join the Sunday family lunch that day, nothing else is planned for them then). Which meal-times kids need this week (breakfast/lunch/dinner, or none at all - the kids track can be skipped entirely some weeks) is given in the user message. For whichever meal-times ARE needed, plan them on every Mon-Sat day EXCEPT a day/slot that's covered by a family occasion instead (see below - e.g. if Saturday breakfast is a family occasion this week, don't also emit a separate kids breakfast that day). Kids meals should be simple to prepare and skew toward batch-cook-and-freeze (e.g. pasta with pesto, freezer-friendly bakes/traybakes) - repeating a favourite from a previous week is fine and expected, do NOT apply the adult variety/anti-repeat rule against the "recently served" list here. **Within a single week, though, still vary the dish types across slots rather than defaulting to the same one or two go-to recipes for every kids meal** - draw from a real repertoire (e.g. wraps, pasta dishes, simple traybakes, stir-fries, jacket potatoes, omelettes, soups, homemade-style pizza, rice/noodle bowls) so a week's kids meals don't read as one recipe repeated under different names. "Simple" describes the dish and ingredient list, not the method write-up - kids meals still need the same genuinely instructive method steps (temperature, timing, doneness cues, per the method-step rules below) as every other track, written for a parent who isn't already a confident cook, not a shorthand version. Kids meals should reflect balanced, age-appropriate nutrition - do NOT apply the adults' selected calorie direction or focuses (see the user message) to kids portions, regardless of what's selected.
+- **track: "family"** - the three shared occasions below, when not skipped. Both servingsAdults and servingsKids should be > 0 (the whole family together). Always use the "Balanced" direction with no focuses (see the user message) regardless of what this week selected - kids eat these meals too, so an adult-specific deficit/surplus/protein/cholesterol focus never applies here.
 
 The three family occasions - Saturday breakfast, Saturday evening, and Sunday lunch - each independently follow the week's request (given below), which is "sit_down", "bbq" (evening/lunch only, never breakfast), or "skip":
 - "sit_down" or "bbq" → emit ONE track:"family" meal for that day/slot, shared by adults and kids together, instead of separate adult/kids meals for that slot.
@@ -95,7 +131,7 @@ For every meal, provide:
   - cholesterolLowering: true only for ingredients with recognised LDL-cholesterol-lowering properties (oats, oily fish like salmon/mackerel/sardines, nuts, seeds, legumes/beans/lentils, olive oil, soluble-fibre fruit/veg like apples/citrus/aubergine, soy).
   - lowSaturatedFat: true only for ingredients that are low in saturated fat - naturally (skinless chicken breast, egg whites, most fruit/veg, oily fish), a low-fat/reduced-fat/fat-free version of a normally higher-fat product (low-fat or fat-free yoghurt, skimmed/semi-skimmed milk, reduced-fat cheese), a lean cut with visible fat trimmed, or an unsaturated-fat swap for a higher-saturated-fat ingredient (olive oil instead of butter).
 - A numbered method that's genuinely instructive, not terse - each step should be usable on its own, without needing the recipe title for context, by someone who isn't already a confident cook. Concretely, that means: state an actual temperature (oven °C, pan heat like "medium-high") or time where the dish needs one; give a visual or sensory doneness cue instead of (or alongside) a bare instruction - "fry for 4-5 minutes until golden and crisp", "simmer until the sauce coats the back of a spoon", "until the yolk is just set" - not just "fry the chicken" or "cook until done"; call out pan/oven specifics (which shelf, lid on/off, a specific pan size) and any brief technique note a less confident cook would actually need (e.g. "pat the chicken dry first so it browns instead of steaming"). One instruction per step is still the right size - this is about making each step concretely useful, not padding step count.
-- A per-portion estimate for kcal, protein (g), carbs (g), fat (g), fibre (g) - for adult meals this is a per-adult-portion estimate under this week's selected goal framing (see the user message); family-occasion meals always use the "Balanced" framing's per-adult-portion estimate regardless of the week's selected goal (kids share these meals too); for kids meals it's a per-kid-portion estimate under balanced age-appropriate nutrition instead. Precision to the gram isn't the goal, a sensible estimate is.
+- A per-portion estimate for kcal, protein (g), carbs (g), fat (g), fibre (g) - for adult meals this is a per-adult-portion estimate under this week's selected direction+focuses (see the user message); family-occasion meals always use the "Balanced", no-focus per-adult-portion estimate regardless of the week's selections (kids share these meals too); for kids meals it's a per-kid-portion estimate under balanced age-appropriate nutrition instead. Precision to the gram isn't the goal, a sensible estimate is.
 - A short food-photo search query capturing the dish visually.
 - usesFreezerItem: the exact name of a freezer inventory item (given in the user message, if any exist) if this meal reheats that previously-frozen batch instead of being cooked fresh - null otherwise. Prefer using an available freezer item for a suitable slot (especially quick weekday meals or kids meals) over cooking/buying the same thing fresh, since it's already paid for and made. A meal that uses a freezer item must have batchCook: null (reheating isn't making a new batch).
 
@@ -130,7 +166,7 @@ Preferred dish styles this week: ${intake.dishStyles.length ? intake.dishStyles.
 Proteins to use this week: ${intake.proteins.length ? intake.proteins.join(", ") : "none specified, use reasonable judgement"}.${excludedProteins.length ? ` Do NOT use these at all this week: ${excludedProteins.join(", ")}.` : ""}
 Effort level: ${EFFORT_LABEL[intake.effort]}.
 Budget for the week: ${intake.budget || "not specified, use reasonable judgement"}.
-This week's nutrition goal: ${GOAL_LABEL[intake.goal]}. ${GOAL_FRAMING[intake.goal]} Applies to adult meals only, without abandoning the dish styles/proteins/effort requested above - NOT to the kids track (always its own balanced framing) and NOT to family-occasion meals (always "Balanced" regardless of this goal - see the household context and track rules).
+This week's nutrition goal: ${nutritionLabel(intake.energyDirection, intake.focuses)}. ${nutritionFramingText(intake.energyDirection, intake.focuses)} Applies to adult meals only, without abandoning the dish styles/proteins/effort requested above - NOT to the kids track (always its own balanced framing) and NOT to family-occasion meals (always "Balanced" with no focuses - see the household context and track rules).
 ${intake.notes ? `IMPORTANT - this week's specific circumstances (these override the standing household defaults above where they conflict, per the note on that in the household context): ${intake.notes}` : ""}
 
 Recently served (avoid repeating these adult/family meals unless asked to keep one - this does not apply to the kids track, which can repeat freely):
@@ -175,7 +211,7 @@ ${otherTitlesThisWeek.length ? otherTitlesThisWeek.map((t) => `- ${t}`).join("\n
 
 Also avoid repeating from recent weeks: ${recentTitles.length ? recentTitles.join(", ") : "no recent history"}.
 
-This week's other preferences still apply to the replacement (unless the meal being replaced is a family-occasion meal, which always uses "Balanced" - see below): dish styles - ${intake.dishStyles.length ? intake.dishStyles.join(", ") : "no preference"}; proteins - ${intake.proteins.length ? intake.proteins.join(", ") : "no preference"}${excludedProteins.length ? ` (do NOT use: ${excludedProteins.join(", ")})` : ""}; effort level - ${EFFORT_LABEL[intake.effort]}; nutrition goal - ${currentMeal.track === "family" ? `Balanced (${GOAL_FRAMING.balanced})` : `${GOAL_LABEL[intake.goal]} (${GOAL_FRAMING[intake.goal]})`}
+This week's other preferences still apply to the replacement (unless the meal being replaced is a family-occasion meal, which always uses "Balanced" with no focuses - see below): dish styles - ${intake.dishStyles.length ? intake.dishStyles.join(", ") : "no preference"}; proteins - ${intake.proteins.length ? intake.proteins.join(", ") : "no preference"}${excludedProteins.length ? ` (do NOT use: ${excludedProteins.join(", ")})` : ""}; effort level - ${EFFORT_LABEL[intake.effort]}; nutrition goal - ${currentMeal.track === "family" ? `Balanced (${nutritionFramingText("balanced", [])})` : `${nutritionLabel(intake.energyDirection, intake.focuses)} (${nutritionFramingText(intake.energyDirection, intake.focuses)})`}
 
 Set batchCook to null and usesFreezerItem to null on the replacement - a single-meal swap must never introduce a new batch-cook/leftover relationship or consume freezer inventory, since the rest of the week's plan was already generated around the meal being replaced.
 

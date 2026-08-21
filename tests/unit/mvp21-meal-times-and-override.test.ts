@@ -37,7 +37,8 @@ function baseIntake(overrides: Partial<WeekIntake> = {}): WeekIntake {
     budget: "",
     effort: "mixed",
     notes: "",
-    goal: "lose_weight",
+    energyDirection: "lose_weight",
+    focuses: [],
     ...overrides,
   };
 }

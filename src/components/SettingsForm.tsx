@@ -20,17 +20,21 @@ const FAMILY_OCCASIONS = [
 
 const MODE_LABEL: Record<string, string> = { sit_down: "Sit-down", bbq: "BBQ", skip: "Skip" };
 
-type Goal = "lose_weight" | "build_muscle" | "balanced" | "reduce_cholesterol";
+type EnergyDirection = "lose_weight" | "balanced" | "build_muscle";
+type NutritionFocus = "increase_protein" | "reduce_cholesterol";
 
-// Same two-row TabStrip pattern as IntakeForm's per-week goal picker (see
-// DECISIONS.md's "Goals selector" entry) - keeps this the household default,
-// still fully overridable per week.
-const GOAL_OPTIONS_ROW1: { value: Goal; label: string }[] = [
+// Two independent axes (see DECISIONS.md's "Goals selector: two-axis
+// redesign" entry) - calorie direction is single-select (3 options fits one
+// TabStrip row), food-quality focuses are multi-select chips stackable on
+// top of any direction. Same pattern as IntakeForm's per-week picker - this
+// is just the household default, still fully overridable per week.
+const ENERGY_DIRECTION_OPTIONS: { value: EnergyDirection; label: string }[] = [
   { value: "lose_weight", label: "Lose weight" },
+  { value: "balanced", label: "Balanced" },
   { value: "build_muscle", label: "Build muscle" },
 ];
-const GOAL_OPTIONS_ROW2: { value: Goal; label: string }[] = [
-  { value: "balanced", label: "Balanced" },
+const FOCUS_OPTIONS: { value: NutritionFocus; label: string }[] = [
+  { value: "increase_protein", label: "Increase protein" },
   { value: "reduce_cholesterol", label: "Reduce cholesterol" },
 ];
 
@@ -54,7 +58,8 @@ export function SettingsForm({
     store: household.store,
     budgetDefault: household.budgetDefault ?? "",
     favoriteProteins: household.favoriteProteins,
-    goal: household.goal as Goal,
+    energyDirection: household.energyDirection as EnergyDirection,
+    focuses: household.focuses as NutritionFocus[],
   });
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
@@ -70,6 +75,13 @@ export function SettingsForm({
       form.favoriteProteins.includes(protein)
         ? form.favoriteProteins.filter((p) => p !== protein)
         : [...form.favoriteProteins, protein],
+    );
+  }
+
+  function toggleFocus(focus: NutritionFocus) {
+    set(
+      "focuses",
+      form.focuses.includes(focus) ? form.focuses.filter((f) => f !== focus) : [...form.focuses, focus],
     );
   }
 
@@ -211,9 +223,35 @@ export function SettingsForm({
             intake form. Kids and family-occasion meals always stay balanced regardless of this setting.
           </p>
         </div>
-        <div className="space-y-1">
-          <TabStrip name="Nutrition goal (1 of 2)" options={GOAL_OPTIONS_ROW1} value={form.goal} onChange={(v) => set("goal", v)} />
-          <TabStrip name="Nutrition goal (2 of 2)" options={GOAL_OPTIONS_ROW2} value={form.goal} onChange={(v) => set("goal", v)} />
+        <div>
+          <span className="label">Direction</span>
+          <TabStrip
+            name="Nutrition direction"
+            options={ENERGY_DIRECTION_OPTIONS}
+            value={form.energyDirection}
+            onChange={(v) => set("energyDirection", v)}
+          />
+        </div>
+        <div>
+          <span className="label">Focus (optional, stack as many as you like)</span>
+          <div className="flex flex-wrap gap-2.5">
+            {FOCUS_OPTIONS.map((opt) => (
+              <Chip
+                key={opt.value}
+                label={opt.label}
+                active={form.focuses.includes(opt.value)}
+                onClick={() => toggleFocus(opt.value)}
+              />
+            ))}
+          </div>
+          <p className="mt-2 text-xs text-ink-500">
+            &quot;Increase protein&quot; applies whichever direction is selected above - higher protein helps
+            both weight loss (satiety, preserving muscle in a deficit) and muscle building, so it&apos;s not
+            tied to one direction. &quot;Reduce cholesterol&quot; favours ingredients with recognised
+            cholesterol-lowering properties (oats, oily fish, nuts, legumes, olive oil...) and
+            lower-saturated-fat choices (low-fat dairy, lean/trimmed meat, skinless poultry...), marked on
+            qualifying ingredients.
+          </p>
         </div>
         <p className="text-xs text-ink-500">
           General everyday guidance, not individualised advice - talk to a healthcare professional for anything

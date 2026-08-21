@@ -17,7 +17,8 @@ function baseHousehold(): typeof households.$inferSelect {
     favoriteProteins: [...PROTEIN_TYPES],
     store: "Sainsbury's",
     budgetDefault: null,
-    goal: "lose_weight",
+    energyDirection: "lose_weight",
+    focuses: [],
     createdAt: "2026-01-01T00:00:00.000Z",
     updatedAt: "2026-01-01T00:00:00.000Z",
   };

@@ -12,7 +12,8 @@ type OccasionMode = "sit_down" | "bbq" | "skip";
 type Effort = "quick" | "mixed" | "more_cooking";
 type MealTime = "breakfast" | "lunch" | "dinner";
 type MealTimesNeeded = { breakfast: boolean; lunch: boolean; dinner: boolean };
-type Goal = "lose_weight" | "build_muscle" | "balanced" | "reduce_cholesterol";
+type EnergyDirection = "lose_weight" | "balanced" | "build_muscle";
+type NutritionFocus = "increase_protein" | "reduce_cholesterol";
 
 const MEAL_TIMES: { key: MealTime; label: string }[] = [
   { key: "breakfast", label: "Breakfast" },
@@ -54,18 +55,20 @@ const EFFORT_OPTIONS: { value: Effort; label: string }[] = [
   { value: "more_cooking", label: "More cooking" },
 ];
 
-// Rendered as two stacked 2-item TabStrip rows (both bound to the same
-// state) rather than one 4-item TabStrip, so the shared TabStrip component
-// never has to support more than 3 segments in a row - avoids risking a
-// layout regression on its other single-select uses (Days needed, family
-// occasion pickers, Effort level) which all assume a narrow segment count
-// (see DECISIONS.md's "Goals selector" entry).
-const GOAL_OPTIONS_ROW1: { value: Goal; label: string }[] = [
+// Two independent axes (see DECISIONS.md's "Goals selector: two-axis
+// redesign" entry) - calorie direction is single-select (3 options, one
+// TabStrip row), food-quality focuses are multi-select chips stackable on
+// top of any direction. Research backs this split: higher protein is the
+// evidence-based mechanism behind BOTH losing weight (satiety, preserving
+// muscle in a deficit) and building muscle, so it isn't a competing goal
+// alongside them - it's a focus that applies regardless of direction.
+const ENERGY_DIRECTION_OPTIONS: { value: EnergyDirection; label: string }[] = [
   { value: "lose_weight", label: "Lose weight" },
+  { value: "balanced", label: "Balanced" },
   { value: "build_muscle", label: "Build muscle" },
 ];
-const GOAL_OPTIONS_ROW2: { value: Goal; label: string }[] = [
-  { value: "balanced", label: "Balanced" },
+const FOCUS_OPTIONS: { value: NutritionFocus; label: string }[] = [
+  { value: "increase_protein", label: "Increase protein" },
   { value: "reduce_cholesterol", label: "Reduce cholesterol" },
 ];
 
@@ -95,7 +98,8 @@ export function IntakeForm({
   defaultSunLunchMode,
   defaultBudget,
   defaultProteins,
-  defaultGoal,
+  defaultEnergyDirection,
+  defaultFocuses,
   recentTitles,
   dishStyles,
   deemphasised,
@@ -107,7 +111,8 @@ export function IntakeForm({
   defaultSunLunchMode: OccasionMode;
   defaultBudget: string;
   defaultProteins: string[];
-  defaultGoal: Goal;
+  defaultEnergyDirection: EnergyDirection;
+  defaultFocuses: NutritionFocus[];
   recentTitles: string[];
   dishStyles: string[];
   deemphasised: string[];
@@ -137,10 +142,11 @@ export function IntakeForm({
     dinner: true,
   });
   const [selectedStyles, setSelectedStyles] = useState<string[]>([]);
-  // Per-week nutrition goal (replaces the old lowerCholesterol toggle - see
-  // DECISIONS.md's "Goals selector" entry). Pre-filled from the household
-  // default, fully overridable per week.
-  const [goal, setGoal] = useState<Goal>(defaultGoal);
+  // Per-week nutrition goal, two independent axes (see DECISIONS.md's
+  // "Goals selector: two-axis redesign" entry). Pre-filled from the
+  // household defaults, fully overridable per week.
+  const [energyDirection, setEnergyDirection] = useState<EnergyDirection>(defaultEnergyDirection);
+  const [focuses, setFocuses] = useState<NutritionFocus[]>(defaultFocuses);
   // Defaults from the household's favorite proteins (MVP 2.1, see
   // DECISIONS.md) instead of always defaulting to every protein - still
   // fully overridable per week.
@@ -158,6 +164,10 @@ export function IntakeForm({
 
   function toggle(list: string[], setList: (v: string[]) => void, value: string) {
     setList(list.includes(value) ? list.filter((v) => v !== value) : [...list, value]);
+  }
+
+  function toggleFocus(focus: NutritionFocus) {
+    setFocuses((f) => (f.includes(focus) ? f.filter((v) => v !== focus) : [...f, focus]));
   }
 
   async function onSubmit(e: React.FormEvent) {
@@ -188,7 +198,8 @@ export function IntakeForm({
         budget,
         effort,
         notes,
-        goal,
+        energyDirection,
+        focuses,
       }),
     });
 
@@ -292,17 +303,34 @@ export function IntakeForm({
           )}
         </div>
         <div>
-          <span className="label">Nutrition goal</span>
-          <div className="space-y-1">
-            <TabStrip name="Nutrition goal (1 of 2)" options={GOAL_OPTIONS_ROW1} value={goal} onChange={setGoal} />
-            <TabStrip name="Nutrition goal (2 of 2)" options={GOAL_OPTIONS_ROW2} value={goal} onChange={setGoal} />
+          <span className="label">Nutrition direction</span>
+          <TabStrip
+            name="Nutrition direction"
+            options={ENERGY_DIRECTION_OPTIONS}
+            value={energyDirection}
+            onChange={setEnergyDirection}
+          />
+        </div>
+        <div>
+          <span className="label">Nutrition focus (optional, stack as many as you like)</span>
+          <div className="flex flex-wrap gap-2.5">
+            {FOCUS_OPTIONS.map((opt) => (
+              <Chip
+                key={opt.value}
+                label={opt.label}
+                active={focuses.includes(opt.value)}
+                onClick={() => toggleFocus(opt.value)}
+              />
+            ))}
           </div>
           <p className="mt-2 text-xs text-ink-500">
             Shapes this week&apos;s adult meals only - kids and family-occasion meals always stay balanced.
-            &quot;Reduce cholesterol&quot; favours ingredients with recognised cholesterol-lowering properties
-            (oats, oily fish, nuts, legumes, olive oil...) and lower-saturated-fat choices (low-fat dairy,
-            lean/trimmed meat, skinless poultry...), marked on qualifying ingredients. General everyday guidance,
-            not individualised advice - talk to a healthcare professional for anything specific to you.
+            &quot;Increase protein&quot; applies whichever direction is selected above (protein helps both
+            weight loss and muscle building). &quot;Reduce cholesterol&quot; favours ingredients with
+            recognised cholesterol-lowering properties (oats, oily fish, nuts, legumes, olive oil...) and
+            lower-saturated-fat choices (low-fat dairy, lean/trimmed meat, skinless poultry...), marked on
+            qualifying ingredients. General everyday guidance, not individualised advice - talk to a
+            healthcare professional for anything specific to you.
           </p>
         </div>
       </TrackSection>

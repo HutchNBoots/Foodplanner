@@ -32,14 +32,13 @@ operator in chat, not logged as backlog items, so they're out of scope for "exec
   portions, listed in the generation prompt so Claude can choose to reheat instead of cook/buy fresh
   (`meal.usesFreezerItem`), a read-only Settings list with manual "Used it" removal, and a "From the
   freezer" badge on the recipe card.
-- ✅ **Household/per-week "Goals" selector** - Lose weight / Build muscle / Balanced / Reduce
-  cholesterol, replacing both the old hardcoded adult-deficit default and the separate
-  `lowerCholesterol` toggle with one nutritionist-reviewed, goal-conditional framing (no fixed deficit
-  for Build muscle, no stated weight/calorie/timeline targets ever). Household Settings default with a
-  fully overridable per-week choice, two stacked 2-item `TabStrip` rows in both `IntakeForm` and
-  `SettingsForm`, one disclaimer line shown for all four options. Verified end-to-end with Playwright
-  against the mocked dev server (Settings save → Intake form default → generation submit), plus mobile
-  (375px) screenshots of both selectors.
+- ✅ **Household/per-week "Goals" selector** - two independent axes: nutrition **direction** (Lose
+  weight / Balanced / Build muscle, single-select `TabStrip`) and nutrition **focus** (Increase
+  protein / Reduce cholesterol, multi-select `Chip`s, stackable on any direction). Replaces both the
+  old hardcoded adult-deficit default and the separate `lowerCholesterol` toggle. Household Settings
+  default with a fully overridable per-week choice, one disclaimer line. Verified end-to-end with
+  Playwright against the mocked dev server (Settings save → Intake form default → generation submit),
+  plus mobile (375px) screenshots of both selectors.
 - ⬜ **Multi-household / multi-user support** - deliberately left unbuilt. Every other item above is
   additive; this one requires picking an auth model and a data-model shape before any feature code,
   which is a product/architecture decision for the operator to make explicitly, not one to guess at
@@ -49,8 +48,17 @@ operator in chat, not logged as backlog items, so they're out of scope for "exec
   ongoing cost and operational surface - an operator infrastructure choice, not a default to pick
   unilaterally.
 
-**Not yet done as of this writing**: opening a PR for this branch and merging it. See `DECISIONS.md`
-for the full "Deliberately not built" reasoning on the last two items.
+All of the above (except the two deliberately-unbuilt items) merged to `main` via PR #8.
+
+**Goals selector correction** (separate follow-up, after PR #8 merged): the operator flagged that
+protein is the mechanism behind BOTH losing weight and building muscle, not a property of one option -
+"can you research on web please and brainstorm a better goals section." Backed by web research (2025
+Dietary Guidelines' 1.2-1.6g/kg protein target, ACSM/AND sports-nutrition consensus, satiety/muscle-
+preservation evidence during a deficit), the Goals selector was rebuilt into the two-axis shape
+described above - direction and focus as independent choices rather than one 4-way enum. See
+`DECISIONS.md`'s "Goals selector: two-axis redesign" entry for the full research citations and
+reasoning, and for why a straight "just add a 5th option" fix was rejected (it was presented to the
+operator as an explicit alternative and declined).
 
 ## MVP 1.3 - Visual identity & mobile UX pass, shipped and merged, plus a follow-up
 
