@@ -763,3 +763,73 @@ avoided).
   either the creative-design or UX/interaction pass — improved instead with `focus-visible` rings
   and a stronger (non-color-only) active-state indicator on both the desktop and mobile nav, leaving
   the icon question open for a future pass rather than guessing at a full replacement set.
+
+## MVP 1.3 follow-up: intake form regrouping, plan-page intake summary, collapsible days
+
+Small operator-requested tweaks after MVP 1.3 merged. Since that PR was already merged, the branch
+was reset to latest `main` before this work per the standard "already-merged PR" branching rule
+(same situation documented in earlier milestones' "Branching" entries) rather than stacked on the
+merged commit.
+
+- **`IntakeForm.tsx` regrouped**: "Avoid repeating" moved from its own standalone section into the
+  "Budget, effort & notes" accordion (renamed "Budget, effort & avoid repeating"); the notes
+  textarea moved out of that same accordion into its own new "About this week" section. Operator
+  request, not a usability finding - implemented as asked. Flagged to the operator that this leaves
+  two similarly-worded index-tab labels on the same form ("This week" for dish styles, "About this
+  week" for notes) - operator confirmed keeping both as specified rather than renaming either.
+- **Intake context surfaced on the plan page**: `weeks.intakeJson` already persists the full intake
+  (including `avoidRepeating` and `notes`) verbatim at generation time (see the "Data model" entry
+  above) - no schema change needed, just a new read. `WeekIntakeSummary.tsx` renders an "About this
+  week" card at the top of `/plan/[weekId]`, showing the notes text and "Avoiding: ..." list from
+  that same week's stored intake, and renders nothing if both are empty (most weeks, historically,
+  since neither field is required).
+- **Days collapsed by default in the recipe view**: each day's `<details>` in `MealTrackTabs.tsx` -
+  previously an always-expanded `<section>` - now defaults closed, with a meal-count hint in the
+  summary row. A full week of expanded meal cards was a genuine wall of content on a narrow screen
+  (the UX/interaction pass's MVP 1.3 finding about needing more progressive disclosure than the
+  budget/effort/notes accordion alone applies here too, just not caught in that pass since it was
+  scoped to the intake form). `WeekNutritionSummary` (also a closed-by-default `<details>`) sits
+  above the day list, so the smoke test's original `page.locator("details summary").first()` now
+  hits the wrong element - the day sections got `data-testid="day-section"` so the test can target
+  them unambiguously (see `tests/e2e/smoke.spec.ts`).
+
+## Cholesterol-lowering focus toggle
+
+Operator-requested feature, not a bug fix or visual tweak - a per-week intake toggle that (a) biases
+generation toward ingredients with recognised LDL-cholesterol-lowering properties and (b) marks
+qualifying ingredients with a ♥ badge on the recipe, confirmed via `AskUserQuestion` (per-week
+intake toggle, not a Settings default; both bias generation and label ingredients, not display-only).
+
+- **`cholesterolLowering: boolean` added to `ingredientSchema`** (`src/lib/claude/schema.ts`) as a
+  **required** field, not optional/defaulted - Claude sets it honestly on every ingredient in every
+  meal regardless of whether that week's toggle is on, per explicit system-prompt instruction (see
+  `buildSystemPrompt`). Required rather than optional so the model can't silently omit it; this is
+  the same "evidence-based property of the ingredient" framing used for `aisle`, not a per-week flag
+  - a week with the toggle off can still show ♥ on an oily-fish dinner if that's just what got
+    generated.
+- **`intake.lowerCholesterol: boolean`** added to `weekIntakeSchema` (default `false`) and the
+  `WeekIntake` type - when true, `buildUserPrompt` adds one line telling Claude to actively favour
+  cholesterol-lowering ingredients this week "without abandoning the dish styles/proteins/effort
+  requested above" (i.e. a bias, not an override of everything else asked for).
+- **UI**: a single `Chip` ("♥ Lower cholesterol") in the intake form's existing "This week"
+  `TrackSection`, next to dish styles - a boolean toggle didn't warrant its own index-tab cluster.
+  `IngredientLine.tsx` renders a small ♥ (sage-colored, `title`/`aria-label` for the tooltip and
+  screen readers) after any ingredient where `cholesterolLowering` is true, on every week's recipes,
+  not gated on that week's toggle having been on.
+- **Scoped to the recipe ingredient list only, not the shopping list** - `aggregate.ts`'s
+  shopping-list dedupe already collapses per-meal ingredient objects down to `productName`/quantity
+  by name, discarding other per-ingredient fields; carrying `cholesterolLowering` through there too
+  is a reasonable follow-up but wasn't asked for and adds aggregation-merge-semantics complexity
+  (what happens if the same product name shows up both flagged and unflagged across meals) that
+  didn't seem worth guessing at unprompted.
+- **Required-field ripple**: making the Claude-schema field required (not optional/defaulted) meant
+  every hand-written `Ingredient`/`MealPlanItem` object literal typed against it needed the field
+  added - `src/lib/claude/mock.ts`, `scripts/eval-method-steps.ts`, and the `WeekIntake`-typed
+  fixtures in `tests/unit/{mvp12-generation-integration,mvp21-meal-times-and-override,
+  retry-generation,shopping-checked,system-prompt,week-ordering,leftover-cap,claude-schema}.test.ts`
+  all got `cholesterolLowering: false` (or `true` on the mock's "mixed vegetables", to give the
+  heart badge something real to render in mocked/e2e runs) - mechanical, not a design decision, but
+  worth noting since it touched a lot of files for one added field. The DB-side `Ingredient` type
+  (`src/lib/db/schema.ts`) keeps this field **optional** instead, since weeks generated before this
+  shipped won't have it in their stored `ingredients_json` - `IngredientLine` treats missing as
+  "no badge", not an error.

@@ -166,6 +166,12 @@ export type Ingredient = {
    * Null for weeks generated before this table existed, or if resolution is
    * ever skipped - rendering never requires this field, only `name`. */
   canonicalIngredientId?: string | null;
+  /** Whether this ingredient has recognised LDL-cholesterol-lowering
+   * properties (cholesterol-lowering toggle, see DECISIONS.md) - set by
+   * Claude on every ingredient regardless of whether that week asked for a
+   * cholesterol-lowering focus. Optional since weeks generated before this
+   * field existed won't have it - render code should treat missing as false. */
+  cholesterolLowering?: boolean;
 };
 
 export type LeftoverRef = { day: string; slot: string };
@@ -205,4 +211,8 @@ export type WeekIntake = {
   budget: string;
   effort: "quick" | "mixed" | "more_cooking";
   notes: string;
+  /** Per-week cholesterol-lowering focus toggle - biases generation toward
+   * ingredients with recognised LDL-cholesterol-lowering properties and is
+   * shown as a heart-icon badge on qualifying ingredients (see DECISIONS.md). */
+  lowerCholesterol: boolean;
 };

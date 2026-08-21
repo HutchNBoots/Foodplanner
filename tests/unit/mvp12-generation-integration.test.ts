@@ -25,6 +25,7 @@ const sampleIntake = {
   budget: "",
   effort: "mixed" as const,
   notes: "",
+  lowerCholesterol: false,
 };
 
 describe("MVP 1.2 generation pipeline (mocked)", () => {

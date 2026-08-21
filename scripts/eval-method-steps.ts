@@ -92,6 +92,7 @@ async function main() {
       budget: "",
       effort: "mixed",
       notes: "",
+      lowerCholesterol: false,
     },
     recentTitles: [],
     recentFeedback: [],

@@ -37,6 +37,7 @@ function baseIntake(overrides: Partial<WeekIntake> = {}): WeekIntake {
     budget: "",
     effort: "mixed",
     notes: "",
+    lowerCholesterol: false,
     ...overrides,
   };
 }
