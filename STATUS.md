@@ -65,6 +65,20 @@ skill's cliché checklist are in `DECISIONS.md`'s "MVP 1.3" entry - this is the 
 - Each day in the recipe view is now a collapsed-by-default `<details>` (was always-expanded) with
   a meal-count hint, so a full week isn't a wall of expanded meal cards on a phone.
 
+**Heart-healthy focus toggle** (added on the same branch/PR, see `DECISIONS.md`'s "Cholesterol-
+lowering focus toggle" and "Saturated fat" entries):
+
+- A "♥ Lower cholesterol" chip in the intake form's "This week" section - when on, generation
+  favours both ingredients with recognised LDL-cholesterol-lowering properties (oats, oily fish,
+  nuts, legumes, olive oil...) and lower-saturated-fat choices (low-fat/fat-free dairy, lean/trimmed
+  meat, skinless poultry...). One toggle covers both, not two - standard dietary guidance treats
+  "less saturated fat" and "more cholesterol-lowering foods" as the same piece of advice.
+- Every ingredient Claude generates now carries two required, honest boolean flags -
+  `cholesterolLowering` and `lowSaturatedFat` - set on every ingredient in every week regardless of
+  whether that week's toggle was on. `IngredientLine` shows a ♥ for the former and a small outline
+  droplet icon for the latter (deliberately a different shape, not just a different tooltip, so the
+  two badges are distinguishable at a glance) - an ingredient can have either, both, or neither.
+
 ## MVP 2.1 - shipped, in PR to `main`
 
 Small operator-requested backlog grab-bag, built as one milestone on `build/mvp2.1` from latest

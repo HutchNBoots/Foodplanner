@@ -172,6 +172,13 @@ export type Ingredient = {
    * cholesterol-lowering focus. Optional since weeks generated before this
    * field existed won't have it - render code should treat missing as false. */
   cholesterolLowering?: boolean;
+  /** Whether this ingredient is low in saturated fat (same toggle as
+   * `cholesterolLowering` above, see DECISIONS.md's "Saturated fat" entry) -
+   * a separate fact from cholesterol-lowering (e.g. low-fat yoghurt is low
+   * in saturated fat but has no cholesterol-lowering property of its own),
+   * so tracked and badged independently. Optional for the same
+   * pre-this-field-existing reason as `cholesterolLowering`. */
+  lowSaturatedFat?: boolean;
 };
 
 export type LeftoverRef = { day: string; slot: string };

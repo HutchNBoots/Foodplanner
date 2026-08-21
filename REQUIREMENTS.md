@@ -428,6 +428,16 @@ Per `PROJECT.md` §9, listed but explicitly deferred — pick up if/when priorit
   appearing when it shouldn't have, is resolved as of MVP 2.1 - adult breakfast is now an
   intentional per-week toggle rather than an always-out-of-scope meal, so it appearing is no longer
   a bug.)
+- ⬜ **Household/per-week "Goals" selector** — Lose weight / Build muscle / Balanced / Reduce
+  cholesterol, replacing today's hardcoded "moderate deficit, high protein" adult default with a
+  chosen framing. Nutritionist-reviewed before being written up here (not built) - see
+  `DECISIONS.md`'s "Backlog item: household/per-week 'Goals' selector" entry for the full
+  recommendations to build from: single-select (fold "Reduce cholesterol" into the same four rather
+  than keeping it a separate toggle), the deficit framing has to become goal-conditional rather than
+  a fixed default ("Build muscle" is nutritionally incompatible with a deficit), a fixed conservative
+  scope + one-time disclaimer for "Lose weight"/"Build muscle" (no user-typed targets, ever), a
+  household Settings default with a per-week override (same pattern as `notes`), and kids/family-
+  occasion meals must stay on the "Balanced" framing regardless of the household's selected goal.
 
 ## Explicitly not planned
 

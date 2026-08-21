@@ -20,6 +20,11 @@ export const ingredientSchema = z.object({
     .describe(
       "True only if this specific ingredient has recognised LDL-cholesterol-lowering properties (e.g. oats, oily fish, nuts, seeds, legumes/beans/lentils, olive oil, soluble-fibre fruit/veg like apples or citrus, soy) - an evidence-based property of the ingredient itself, not a reflection of whether this week asked for a cholesterol-lowering focus.",
     ),
+  lowSaturatedFat: z
+    .boolean()
+    .describe(
+      "True only if this specific ingredient is low in saturated fat - either naturally (e.g. skinless chicken breast, egg whites, most fruit/veg, oily fish), a low-fat/reduced-fat/fat-free version of a normally higher-fat product (e.g. low-fat or fat-free yoghurt, skimmed/semi-skimmed milk, reduced-fat cheese), a lean cut with visible fat trimmed, or an unsaturated-fat swap for a higher-saturated-fat ingredient (e.g. olive oil instead of butter). An evidence-based property of the ingredient itself, not a reflection of whether this week asked for a cholesterol-lowering focus.",
+    ),
 });
 
 export const macrosSchema = z.object({
