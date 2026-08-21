@@ -53,7 +53,7 @@ Household context (standing defaults - apply unless the week's specific request 
 Every meal you emit needs a "track" (whose meal it is) and a "slot" (which meal-time):
 
 - **track: "adult"** - the standing adult plan. Which meal-times adults need this week (breakfast/lunch/dinner) is given in the user message - historically adults never got a breakfast, but that's now a per-week choice, not a fixed rule. Weekday lunches (when needed) are frequently a reused batch-cook leftover rather than a newly cooked meal (encouraged, not a fallback).
-- **track: "kids"** - a separate, simple kids plan, Monday-Saturday ONLY (never Sunday - kids only join the Sunday family lunch that day, nothing else is planned for them then). Which meal-times kids need this week (breakfast/lunch/dinner, or none at all - the kids track can be skipped entirely some weeks) is given in the user message. For whichever meal-times ARE needed, plan them on every Mon-Sat day EXCEPT a day/slot that's covered by a family occasion instead (see below - e.g. if Saturday breakfast is a family occasion this week, don't also emit a separate kids breakfast that day). Kids meals should be simple, often repeatable, and skew toward batch-cook-and-freeze (e.g. pasta with pesto, freezer-friendly bakes/traybakes) - some repetition week to week is normal and expected, do not apply the adult variety/anti-repeat rule here. Kids meals should reflect balanced, age-appropriate nutrition - do NOT apply the adult calorie-deficit/high-protein framing to kids portions.
+- **track: "kids"** - a separate, simple kids plan, Monday-Saturday ONLY (never Sunday - kids only join the Sunday family lunch that day, nothing else is planned for them then). Which meal-times kids need this week (breakfast/lunch/dinner, or none at all - the kids track can be skipped entirely some weeks) is given in the user message. For whichever meal-times ARE needed, plan them on every Mon-Sat day EXCEPT a day/slot that's covered by a family occasion instead (see below - e.g. if Saturday breakfast is a family occasion this week, don't also emit a separate kids breakfast that day). Kids meals should be simple to prepare and skew toward batch-cook-and-freeze (e.g. pasta with pesto, freezer-friendly bakes/traybakes) - repeating a favourite from a previous week is fine and expected, do NOT apply the adult variety/anti-repeat rule against the "recently served" list here. **Within a single week, though, still vary the dish types across slots rather than defaulting to the same one or two go-to recipes for every kids meal** - draw from a real repertoire (e.g. wraps, pasta dishes, simple traybakes, stir-fries, jacket potatoes, omelettes, soups, homemade-style pizza, rice/noodle bowls) so a week's kids meals don't read as one recipe repeated under different names. "Simple" describes the dish and ingredient list, not the method write-up - kids meals still need the same genuinely instructive method steps (temperature, timing, doneness cues, per the method-step rules below) as every other track, written for a parent who isn't already a confident cook, not a shorthand version. Kids meals should reflect balanced, age-appropriate nutrition - do NOT apply the adult calorie-deficit/high-protein framing to kids portions.
 - **track: "family"** - the three shared occasions below, when not skipped. Both servingsAdults and servingsKids should be > 0 (the whole family together).
 
 The three family occasions - Saturday breakfast, Saturday evening, and Sunday lunch - each independently follow the week's request (given below), which is "sit_down", "bbq" (evening/lunch only, never breakfast), or "skip":
@@ -71,6 +71,7 @@ For every meal, provide:
 - A numbered method that's genuinely instructive, not terse - each step should be usable on its own, without needing the recipe title for context, by someone who isn't already a confident cook. Concretely, that means: state an actual temperature (oven °C, pan heat like "medium-high") or time where the dish needs one; give a visual or sensory doneness cue instead of (or alongside) a bare instruction - "fry for 4-5 minutes until golden and crisp", "simmer until the sauce coats the back of a spoon", "until the yolk is just set" - not just "fry the chicken" or "cook until done"; call out pan/oven specifics (which shelf, lid on/off, a specific pan size) and any brief technique note a less confident cook would actually need (e.g. "pat the chicken dry first so it browns instead of steaming"). One instruction per step is still the right size - this is about making each step concretely useful, not padding step count.
 - A per-portion estimate for kcal, protein (g), carbs (g), fat (g), fibre (g) - for adult/family meals this is a per-adult-portion estimate under the deficit/high-protein framing above; for kids meals it's a per-kid-portion estimate under balanced age-appropriate nutrition instead. Precision to the gram isn't the goal, a sensible estimate is.
 - A short food-photo search query capturing the dish visually.
+- usesFreezerItem: the exact name of a freezer inventory item (given in the user message, if any exist) if this meal reheats that previously-frozen batch instead of being cooked fresh - null otherwise. Prefer using an available freezer item for a suitable slot (especially quick weekday meals or kids meals) over cooking/buying the same thing fresh, since it's already paid for and made. A meal that uses a freezer item must have batchCook: null (reheating isn't making a new batch).
 
 A full week is a lot of meals to specify in one response (adult + kids + family tracks together roughly doubles what a single-track week used to be) - favour concise, economical wording throughout (no restated context, no flowery description, no padding for its own sake) so the whole week fits comfortably. Do not sacrifice completeness or the method steps' instructiveness above for brevity - every field for every meal must still be filled in properly, and every method step still needs its temperature/time/doneness-cue detail - just don't waste words getting there.
 
@@ -82,8 +83,9 @@ export function buildUserPrompt(params: {
   intake: WeekIntake;
   recentTitles: string[];
   recentFeedback: { rating: string; note: string | null; title: string }[];
+  freezerInventory: { itemName: string; portions: number }[];
 }): string {
-  const { weekStartDate, intake, recentTitles, recentFeedback } = params;
+  const { weekStartDate, intake, recentTitles, recentFeedback, freezerInventory } = params;
 
   const feedbackLines = recentFeedback.length
     ? recentFeedback
@@ -113,5 +115,43 @@ Explicitly asked to avoid repeating: ${intake.avoidRepeating.length ? intake.avo
 Feedback from recent weeks (steer toward loved meals periodically, away from disliked ones, respect effort feedback):
 ${feedbackLines}
 
+Freezer inventory available (already batch-frozen from a previous week - see the household context above and the usesFreezerItem field instructions; prefer using one of these for a suitable slot over cooking/buying the same thing fresh):
+${freezerInventory.length ? freezerInventory.map((f) => `- ${f.itemName} (${f.portions} portion(s) left)`).join("\n") : "- Freezer is empty."}
+
 Call emit_week_plan with the full week's plan now.`;
+}
+
+const SLOT_LABEL: Record<string, string> = { breakfast: "Breakfast", lunch: "Lunch", dinner: "Dinner", sunday_special: "Sunday" };
+const TRACK_LABEL: Record<string, string> = { adult: "the adult plan", kids: "the kids plan", family: "a shared family occasion" };
+
+/** "Swap this meal" backlog feature (see DECISIONS.md) - a single-meal
+ * regeneration, not a full-week one. Reuses the household's standing system
+ * prompt (`buildSystemPrompt`) and that week's own stored intake for
+ * context/preferences, but asks for exactly one replacement meal via a
+ * separate `emit_meal` tool call. */
+export function buildSwapMealUserPrompt(params: {
+  intake: WeekIntake;
+  currentMeal: { slot: string; track: string; title: string; servingsAdults: number; servingsKids: number };
+  otherTitlesThisWeek: string[];
+  recentTitles: string[];
+}): string {
+  const { intake, currentMeal, otherTitlesThisWeek, recentTitles } = params;
+  const excludedProteins = PROTEIN_TYPES.filter((p) => !intake.proteins.includes(p));
+
+  return `The household wants a single meal replaced in an already-generated week - do NOT regenerate anything else.
+
+Replace: ${SLOT_LABEL[currentMeal.slot] ?? currentMeal.slot} for ${TRACK_LABEL[currentMeal.track] ?? currentMeal.track}, currently "${currentMeal.title}". The replacement must serve exactly ${currentMeal.servingsAdults} adult(s) and ${currentMeal.servingsKids} kid(s) - do not change the serving counts.
+
+The replacement must be a genuinely different dish, not a minor variation of "${currentMeal.title}" (different main ingredient or cooking method, not just a renamed version of the same dish).
+
+Do not duplicate any other meal already in this week's plan:
+${otherTitlesThisWeek.length ? otherTitlesThisWeek.map((t) => `- ${t}`).join("\n") : "- (no other meals this week)"}
+
+Also avoid repeating from recent weeks: ${recentTitles.length ? recentTitles.join(", ") : "no recent history"}.
+
+This week's other preferences still apply to the replacement: dish styles - ${intake.dishStyles.length ? intake.dishStyles.join(", ") : "no preference"}; proteins - ${intake.proteins.length ? intake.proteins.join(", ") : "no preference"}${excludedProteins.length ? ` (do NOT use: ${excludedProteins.join(", ")})` : ""}; effort level - ${EFFORT_LABEL[intake.effort]}.${intake.lowerCholesterol ? " This week has a cholesterol-lowering focus: favour ingredients with recognised LDL-cholesterol-lowering or low-saturated-fat properties where they fit." : ""}
+
+Set batchCook to null and usesFreezerItem to null on the replacement - a single-meal swap must never introduce a new batch-cook/leftover relationship or consume freezer inventory, since the rest of the week's plan was already generated around the meal being replaced.
+
+Call emit_meal with the one replacement meal now.`;
 }

@@ -58,3 +58,26 @@ describe("buildSystemPrompt ingredients-never-empty rule", () => {
     expect(prompt).toContain("never emit an empty list");
   });
 });
+
+// Backlog item: kids meals could be more instructive/varied (see
+// REQUIREMENTS.md's Backlog section, DECISIONS.md's "Generation
+// prompt-tuning pass" entry). Week-to-week repetition stays explicitly
+// allowed (a deliberate MVP 1.2 decision) - this only tightens within-week
+// variety and clarifies the instructiveness bar is the same as every other
+// track, not a shorthand version.
+describe("buildSystemPrompt kids-track variety and instructiveness", () => {
+  it("asks for within-week variety across kids meal slots", () => {
+    const prompt = buildSystemPrompt(baseHousehold());
+    expect(prompt).toContain("Within a single week");
+  });
+
+  it("still allows week-to-week repetition of kids favourites", () => {
+    const prompt = buildSystemPrompt(baseHousehold());
+    expect(prompt).toContain('repeating a favourite from a previous week is fine and expected');
+  });
+
+  it("clarifies kids meals need the same instructive method steps as every other track", () => {
+    const prompt = buildSystemPrompt(baseHousehold());
+    expect(prompt).toContain("not a shorthand version");
+  });
+});

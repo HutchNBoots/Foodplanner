@@ -942,3 +942,107 @@ to build from directly whenever this is picked up:
    household's selected goal - occasions are already a separate track in the prompt, so this is a
    small conditional, not a structural change, and it closes a gap that predates this feature rather
    than introducing a new one.
+
+## Backlog execution: "execute all the backlog, don't need me involved"
+
+The operator asked for every item in `REQUIREMENTS.md`'s Backlog section to be built, autonomously,
+with the decision log kept current. Scoped precisely to that section's six items (not every review
+finding from the "Multi-agent app review" entry above, which was never formalised into that list) -
+four were built this pass (see their own entries below); two were deliberately left un-built with
+reasoning logged (see the "Deliberately not built" entry) rather than guessed at blind, since both
+are large enough decisions (a fundamental auth/data-model pivot; an operator infrastructure choice
+neither of which this session could responsibly make alone) that building something risks producing
+the wrong thing entirely rather than just extra, discardable work.
+
+### Generation prompt-tuning pass for kids meals
+
+`REQUIREMENTS.md`'s backlog item: "kids meals could be more instructive/varied." The MVP 1.2
+decision that kids meals may repeat week-to-week (`recentTitles` anti-repeat rule doesn't apply to
+the kids track) stays exactly as it was - re-litigating it wasn't what "more varied" was asking for.
+What changed in `buildSystemPrompt`'s kids-track bullet:
+- **Within-week variety**: explicitly asks for different dish types across a single week's kids
+  slots (not the same one or two go-to recipes every time), with a short example repertoire
+  (wraps, traybakes, stir-fries, jacket potatoes, omelettes, soups, homemade-style pizza, rice/
+  noodle bowls) so the model has concrete options to draw from instead of defaulting narrow.
+- **Instructiveness clarified, not changed**: the existing method-step rules (temperature, timing,
+  doneness cues) already applied to every track structurally, but "kids meals should be simple"
+  could plausibly be read by the model as license for a shorthand method write-up too. Added one
+  explicit sentence separating "simple" (the dish/ingredient list) from the method's detail level,
+  which stays identical to every other track.
+- Verified via `tests/unit/system-prompt-method-steps.test.ts` content-assertions (the established
+  pattern for this file, since prompt *quality* can't be verified without a live Claude call - no
+  `ANTHROPIC_API_KEY` in this sandbox, same limitation every prior session flagged for this kind of
+  change).
+
+### "Swap this meal"
+
+`REQUIREMENTS.md`'s backlog item: regenerate a single meal instead of the whole week.
+
+- **New `POST /api/meals/[mealId]/swap`**, synchronous (not the `after()`+202+poll pattern
+  `/api/generate` uses) - a single-meal call (`max_tokens: 4000`, a new `emit_meal` tool reusing
+  `mealSchema` directly via a new `mealToolInputSchema()`) is small/fast enough that the client can
+  just await the response, so no polling infrastructure was worth building for it. `maxDuration = 60`
+  covers the Anthropic call running slower than Vercel's short default.
+- **Batch-cook meals can't be swapped** (`SwapNotAllowedError`, 409) - a batch-cook source's
+  leftover relationship is described only on *its own* row (`leftoverForJson`); other days' meal
+  rows don't reference it back, so swapping it away would silently strand whatever those days'
+  content says about "using Monday's batch" with nothing left to describe. Simplest safe rule:
+  disallow it outright rather than trying to keep a swapped-in meal's batch/leftover shape in exact
+  sync with rows this call doesn't touch. The button isn't even rendered for these meals
+  client-side, so the 409 is a defensive backstop, not the primary UX.
+- **The replacement never introduces a new batch-cook or freezer-inventory relationship**
+  (`batchCook`/`usesFreezerItem` force-set to `null` server-side after parsing, not just prompted
+  for) - the rest of the week's plan was already generated around the meal being replaced, so a
+  swap creating new same-week leftover/freezer dependencies risks invalidating leftover-cap
+  accounting or freezer bookkeeping that already happened for other meals.
+- **`slot`/`track`/servings are force-overridden server-side** after parsing, same reasoning as
+  every other "validated with a forced tool call, still don't fully trust the model" decision in
+  this codebase - the swap must replace exactly the meal that was clicked, not something the model
+  decided to reinterpret.
+- **Whole-week shopping list re-aggregated in place** (`replaceShoppingItemsForWeek` - delete +
+  reinsert for that week) after the swap, using the exact same deterministic `aggregateShoppingList`
+  a fresh generation uses, just re-run for one week's current meals instead of a freshly-inserted
+  batch. `planJson` (the raw blob) is deliberately left stale after a swap - nothing else reads meal
+  content from it (the normalized `meals` table is what every view renders from), so the only
+  practical effect is the home page's week-summary teaser text not reflecting a later swap. Judged
+  not worth patching for a one-line, low-visibility teaser versus the complexity of also editing a
+  blob shaped like a full-week Claude response for a single-meal change.
+- Verified with a PGlite integration test (`tests/unit/swap-meal.test.ts`, mocked generation) proving
+  the batch-cook rejection, the in-place content replacement (slot/track/servings preserved), and
+  the shopping-list re-aggregation actually picking up the new ingredient.
+
+### Freezer inventory tracking
+
+`REQUIREMENTS.md`'s backlog item: "knowing what's already batch-frozen from a prior week and
+factoring that into future generation (skip re-cooking/re-buying accordingly)."
+
+- **New `freezer_inventory` table** (migration `0004`): one row per batch-freezing event (not one
+  row per household) - `itemName`, `portions`, `frozenFromWeekId` (informational only), decremented
+  or deleted as it's consumed. A new `meals.usesFreezerItem` column (nullable text) records which
+  inventory item a given meal reheated, mutually exclusive with `batchMakes` (a meal either makes a
+  new batch or reheats an old one, never both - enforced in the prompt and, for swaps, server-side).
+- **Stocking**: any meal with `batchCook.freezerPortions > 0` at persist time adds a
+  `freezer_inventory` row (`persistPlan`, after the existing image-resolution step). **Consumption**:
+  the household's current freezer inventory (name + portions) is listed in `buildUserPrompt`'s
+  message every generation; if Claude sets `meal.usesFreezerItem` to a name matching one exactly, the
+  matching row is decremented by that meal's total servings after persisting, deleted at zero. Portion
+  accounting is intentionally approximate (servings consumed, not a stricter unit-of-measure model) -
+  good enough for "should we cook this again or not," not trying to be a precise kitchen inventory
+  system.
+- **Consumption can't be verified without a live Claude call** (same sandbox limitation as the kids
+  prompt-tuning pass) - `MOCK_GENERATION`'s deterministic mock plan doesn't take freezer inventory as
+  an input the way a real call does, so extending the mock to fake "the model chose to use a freezer
+  item" would just be testing invented mock logic, not the real prompt-following behaviour. What *is*
+  tested (via `tests/unit/freezer-inventory.test.ts`, PGlite + mocked generation): stocking from a
+  real `freezerPortions` value, exact-name lookup, decrement-then-delete-at-zero, and manual removal -
+  the whole storage/query layer the consumption path depends on, just not the "does Claude actually
+  choose well" question itself.
+- **Settings UI**: a read-only list (household-level standing state, same section pattern as favorite
+  proteins/family occasions) plus a manual "Used it" removal per item (`DELETE
+  /api/freezer-items/[itemId]`, idempotent) for a household member who ate or binned something
+  without waiting for a future generation to consume it server-side. No manual "add" affordance -
+  deliberately kept as a faithful record of what generation actually froze, not a free-form todo
+  list, to avoid the inventory drifting from what's really in the freezer.
+- **MealCard badge**: a meal with `usesFreezerItem` set shows a small "From the freezer" badge
+  (sage-colored, distinct from the existing amber "Makes N" batch-cook badge, matching the "one
+  color, one job" reasoning from MVP 1.3's palette).

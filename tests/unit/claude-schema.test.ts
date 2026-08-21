@@ -24,6 +24,7 @@ const validPlan = {
           method: ["Preheat the oven.", "Roast for 25 minutes."],
           macrosPerAdultPortion: { kcal: 520, proteinG: 38, carbsG: 40, fatG: 18, fibreG: 8 },
           photoQuery: "chicken tray bake",
+          usesFreezerItem: null,
           batchCook: null,
         },
       ],

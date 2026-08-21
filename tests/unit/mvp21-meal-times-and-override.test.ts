@@ -49,6 +49,7 @@ describe("buildUserPrompt meal-times line (MVP 2.1)", () => {
       intake: baseIntake({ kidsMeals: { breakfast: false, lunch: false, dinner: false } }),
       recentTitles: [],
       recentFeedback: [],
+      freezerInventory: [],
     });
 
     expect(prompt).toContain(
@@ -62,6 +63,7 @@ describe("buildUserPrompt meal-times line (MVP 2.1)", () => {
       intake: baseIntake({ parentMeals: { breakfast: false, lunch: true, dinner: true } }),
       recentTitles: [],
       recentFeedback: [],
+      freezerInventory: [],
     });
 
     expect(prompt).toContain('Meal-times needed this week - parents (track "adult"): lunch, dinner (no breakfast).');
@@ -73,6 +75,7 @@ describe("buildUserPrompt meal-times line (MVP 2.1)", () => {
       intake: baseIntake({ parentMeals: { breakfast: true, lunch: true, dinner: true } }),
       recentTitles: [],
       recentFeedback: [],
+      freezerInventory: [],
     });
 
     expect(prompt).toContain('parents (track "adult"): breakfast, lunch, dinner.');
@@ -86,6 +89,7 @@ describe("buildUserPrompt notes override framing (MVP 2.1)", () => {
       intake: baseIntake({ notes: "Camping this week, no oven." }),
       recentTitles: [],
       recentFeedback: [],
+      freezerInventory: [],
     });
 
     expect(prompt).toContain("IMPORTANT - this week's specific circumstances");

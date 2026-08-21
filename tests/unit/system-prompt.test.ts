@@ -27,6 +27,7 @@ describe("buildUserPrompt protein handling", () => {
       intake: baseIntake(),
       recentTitles: [],
       recentFeedback: [],
+      freezerInventory: [],
     });
 
     expect(prompt).not.toContain("Do NOT use");
@@ -39,6 +40,7 @@ describe("buildUserPrompt protein handling", () => {
       intake: baseIntake({ proteins: PROTEIN_TYPES.filter((p) => p !== "Beef") }),
       recentTitles: [],
       recentFeedback: [],
+      freezerInventory: [],
     });
 
     expect(prompt).toContain("Do NOT use these at all this week: Beef.");
@@ -51,6 +53,7 @@ describe("buildUserPrompt protein handling", () => {
       intake: baseIntake({ proteins: [] }),
       recentTitles: [],
       recentFeedback: [],
+      freezerInventory: [],
     });
 
     expect(prompt).toContain("Proteins to use this week: none specified, use reasonable judgement.");

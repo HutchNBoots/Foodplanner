@@ -103,6 +103,32 @@ export const meals = pgTable("meals", {
    * `leftoverForJson` (same-week reuse) - MVP 1.2, see DECISIONS.md.
    * Null/0 means nothing from this batch is being frozen. */
   freezerPortions: integer("freezer_portions"),
+  /** Freezer inventory tracking (backlog item, see DECISIONS.md) - the exact
+   * `freezerInventory.itemName` this meal reheats instead of being cooked
+   * fresh, or null for an ordinary freshly-cooked meal. Mutually exclusive
+   * with `batchMakes` - a meal either makes a new batch or reheats an old
+   * one, never both. */
+  usesFreezerItem: text("uses_freezer_item"),
+  createdAt: createdAt(),
+});
+
+/** Freezer inventory tracking (backlog item, see DECISIONS.md) - what's
+ * already batch-frozen from a prior week's `freezerPortions`, so future
+ * generations can suggest reheating it instead of cooking/buying fresh.
+ * One row per batch-freezing event, not one row per household - `portions`
+ * decrements (and the row is deleted at zero) as generations consume it, or
+ * a household member removes it manually after eating/discarding it. */
+export const freezerInventory = pgTable("freezer_inventory", {
+  id: id(),
+  householdId: text("household_id")
+    .notNull()
+    .references(() => households.id, { onDelete: "cascade" }),
+  itemName: text("item_name").notNull(),
+  portions: integer("portions").notNull(),
+  /** Which week originally froze this batch - informational only (shown in
+   * Settings), not a hard dependency; the row survives if the week is ever
+   * removed some other way. */
+  frozenFromWeekId: text("frozen_from_week_id").references(() => weeks.id, { onDelete: "set null" }),
   createdAt: createdAt(),
 });
 

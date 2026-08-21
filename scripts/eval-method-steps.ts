@@ -96,6 +96,7 @@ async function main() {
     },
     recentTitles: [],
     recentFeedback: [],
+    freezerInventory: [],
   });
 
   const meals = plan.days.flatMap((day) => day.meals.map((meal) => ({ day: day.day, ...meal })));

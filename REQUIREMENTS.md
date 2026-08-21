@@ -416,18 +416,32 @@ does each track need this week":
 
 Per `PROJECT.md` §9, listed but explicitly deferred — pick up if/when prioritised:
 
-- ⬜ Multi-household / multi-user support
-- ⬜ Push notifications / reminders (e.g. "start Monday's batch cook")
-- ⬜ "Swap this meal" — regenerate a single meal instead of the whole week
-- ⬜ Freezer inventory tracking — knowing what's already batch-frozen from a prior week and
+- ⬜ Multi-household / multi-user support — deliberately not built, see `DECISIONS.md`'s
+  "Deliberately not built" entry (a fundamental auth/data-model pivot, not a scoped feature).
+- ⬜ Push notifications / reminders (e.g. "start Monday's batch cook") — deliberately not built, see
+  `DECISIONS.md`'s "Deliberately not built" entry (needs an operator infrastructure decision - web
+  push vs. email vs. SMS - this session couldn't make alone).
+- ✅ "Swap this meal" — regenerate a single meal instead of the whole week. Shipped: `POST
+  /api/meals/[mealId]/swap`, a `SwapMealButton` on `MealCard` (hidden for batch-cook meals, which
+  can't be swapped), whole-week shopping-list re-aggregation after the swap. See `DECISIONS.md`'s
+  "Swap this meal" entry.
+- ✅ Freezer inventory tracking — knowing what's already batch-frozen from a prior week and
   factoring that into future generation (skip re-cooking/re-buying accordingly), deferred from
-  MVP 1.2's narrower "suggest doubling the batch" version
-- ⬜ Generation prompt-tuning pass — kids meals could be more instructive/varied. A
-  prompt-following issue to review and tighten in the system prompt, not a data-model bug -
-  explicitly deferred to a future milestone. (The other half of this item, an adult breakfast
-  appearing when it shouldn't have, is resolved as of MVP 2.1 - adult breakfast is now an
-  intentional per-week toggle rather than an always-out-of-scope meal, so it appearing is no longer
-  a bug.)
+  MVP 1.2's narrower "suggest doubling the batch" version. Shipped: a `freezer_inventory` table
+  stocked from `batchCook.freezerPortions`, listed in the generation prompt so Claude can choose to
+  reheat instead of cook/buy fresh (`meal.usesFreezerItem`), a read-only Settings list with manual
+  "Used it" removal, and a "From the freezer" badge on the recipe card. See `DECISIONS.md`'s
+  "Freezer inventory tracking" entry - the consumption half can't be verified without a live Claude
+  call, same limitation as the prompt-tuning pass below.
+- ✅ Generation prompt-tuning pass — kids meals could be more instructive/varied. A
+  prompt-following issue to review and tighten in the system prompt, not a data-model bug.
+  Shipped: within-week variety guidance (a short example repertoire so the model doesn't default to
+  the same one or two dishes) and a clarification that "simple" describes the dish, not the method
+  write-up's instructiveness bar. See `DECISIONS.md`'s "Generation prompt-tuning pass" entry - prompt
+  *quality* can't be verified without a live Claude call, so this is verified by content-assertion
+  tests, not a live-generation eval. (The other half of this item, an adult breakfast appearing when
+  it shouldn't have, is resolved as of MVP 2.1 - adult breakfast is now an intentional per-week
+  toggle rather than an always-out-of-scope meal, so it appearing is no longer a bug.)
 - ⬜ **Household/per-week "Goals" selector** — Lose weight / Build muscle / Balanced / Reduce
   cholesterol, replacing today's hardcoded "moderate deficit, high protein" adult default with a
   chosen framing. Nutritionist-reviewed before being written up here (not built) - see
