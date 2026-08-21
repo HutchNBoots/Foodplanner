@@ -16,6 +16,7 @@
 /local-pgdata
 /local-pgdata-e2e
 /local-pgdata-manual
+/local-pgdata-*
 
 # testing
 /coverage
