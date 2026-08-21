@@ -56,6 +56,12 @@ export const mealSchema = z.object({
     "Per-portion macro estimate for whoever eats this meal - an adult portion for 'adult'/'family' meals, a kid portion for 'kids' meals (kids meals should reflect balanced age-appropriate nutrition, not the adult deficit/high-protein framing).",
   ),
   photoQuery: z.string().describe("2-4 word food-photo search query representing this dish, e.g. 'grilled chicken tray bake'."),
+  usesFreezerItem: z
+    .string()
+    .nullable()
+    .describe(
+      "Set to the EXACT name of a freezer inventory item (given in the user message) if this meal reheats/uses that previously-frozen batch instead of being cooked fresh - must match one of the provided names exactly, character for character. Null if this meal is freshly cooked. Mutually exclusive with batchCook - a meal that reheats a freezer item must have batchCook: null (it isn't making a new batch).",
+    ),
   batchCook: z
     .object({
       makes: z.number().int().min(1).describe("Total portions this recipe makes - size ingredient quantities to cover this many portions, including any being frozen (see freezerPortions)."),
@@ -94,6 +100,16 @@ export type WeekPlan = z.infer<typeof weekPlanSchema>;
  * used to validate the response - single source of truth (see DECISIONS.md). */
 export function weekPlanToolInputSchema() {
   const schema = z.toJSONSchema(weekPlanSchema, { target: "draft-7" }) as Record<string, unknown>;
+  delete schema.$schema;
+  return schema;
+}
+
+/** Same pattern as `weekPlanToolInputSchema`, for the "swap this meal"
+ * backlog feature (see DECISIONS.md) - reuses `mealSchema` directly rather
+ * than a parallel schema, so a single meal's shape can never drift from
+ * what a full week's plan already requires per-meal. */
+export function mealToolInputSchema() {
+  const schema = z.toJSONSchema(mealSchema, { target: "draft-7" }) as Record<string, unknown>;
   delete schema.$schema;
   return schema;
 }

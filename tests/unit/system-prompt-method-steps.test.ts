@@ -17,6 +17,7 @@ function baseHousehold(): typeof households.$inferSelect {
     favoriteProteins: [...PROTEIN_TYPES],
     store: "Sainsbury's",
     budgetDefault: null,
+    goal: "lose_weight",
     createdAt: "2026-01-01T00:00:00.000Z",
     updatedAt: "2026-01-01T00:00:00.000Z",
   };
@@ -56,5 +57,28 @@ describe("buildSystemPrompt ingredients-never-empty rule", () => {
   it("states that every meal's ingredients list must have at least one entry", () => {
     const prompt = buildSystemPrompt(baseHousehold());
     expect(prompt).toContain("never emit an empty list");
+  });
+});
+
+// Backlog item: kids meals could be more instructive/varied (see
+// REQUIREMENTS.md's Backlog section, DECISIONS.md's "Generation
+// prompt-tuning pass" entry). Week-to-week repetition stays explicitly
+// allowed (a deliberate MVP 1.2 decision) - this only tightens within-week
+// variety and clarifies the instructiveness bar is the same as every other
+// track, not a shorthand version.
+describe("buildSystemPrompt kids-track variety and instructiveness", () => {
+  it("asks for within-week variety across kids meal slots", () => {
+    const prompt = buildSystemPrompt(baseHousehold());
+    expect(prompt).toContain("Within a single week");
+  });
+
+  it("still allows week-to-week repetition of kids favourites", () => {
+    const prompt = buildSystemPrompt(baseHousehold());
+    expect(prompt).toContain('repeating a favourite from a previous week is fine and expected');
+  });
+
+  it("clarifies kids meals need the same instructive method steps as every other track", () => {
+    const prompt = buildSystemPrompt(baseHousehold());
+    expect(prompt).toContain("not a shorthand version");
   });
 });

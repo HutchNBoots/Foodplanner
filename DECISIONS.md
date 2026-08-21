@@ -942,3 +942,194 @@ to build from directly whenever this is picked up:
    household's selected goal - occasions are already a separate track in the prompt, so this is a
    small conditional, not a structural change, and it closes a gap that predates this feature rather
    than introducing a new one.
+
+## Backlog execution: "execute all the backlog, don't need me involved"
+
+The operator asked for every item in `REQUIREMENTS.md`'s Backlog section to be built, autonomously,
+with the decision log kept current. Scoped precisely to that section's six items (not every review
+finding from the "Multi-agent app review" entry above, which was never formalised into that list) -
+four were built this pass (see their own entries below); two were deliberately left un-built with
+reasoning logged (see the "Deliberately not built" entry) rather than guessed at blind, since both
+are large enough decisions (a fundamental auth/data-model pivot; an operator infrastructure choice
+neither of which this session could responsibly make alone) that building something risks producing
+the wrong thing entirely rather than just extra, discardable work.
+
+### Generation prompt-tuning pass for kids meals
+
+`REQUIREMENTS.md`'s backlog item: "kids meals could be more instructive/varied." The MVP 1.2
+decision that kids meals may repeat week-to-week (`recentTitles` anti-repeat rule doesn't apply to
+the kids track) stays exactly as it was - re-litigating it wasn't what "more varied" was asking for.
+What changed in `buildSystemPrompt`'s kids-track bullet:
+- **Within-week variety**: explicitly asks for different dish types across a single week's kids
+  slots (not the same one or two go-to recipes every time), with a short example repertoire
+  (wraps, traybakes, stir-fries, jacket potatoes, omelettes, soups, homemade-style pizza, rice/
+  noodle bowls) so the model has concrete options to draw from instead of defaulting narrow.
+- **Instructiveness clarified, not changed**: the existing method-step rules (temperature, timing,
+  doneness cues) already applied to every track structurally, but "kids meals should be simple"
+  could plausibly be read by the model as license for a shorthand method write-up too. Added one
+  explicit sentence separating "simple" (the dish/ingredient list) from the method's detail level,
+  which stays identical to every other track.
+- Verified via `tests/unit/system-prompt-method-steps.test.ts` content-assertions (the established
+  pattern for this file, since prompt *quality* can't be verified without a live Claude call - no
+  `ANTHROPIC_API_KEY` in this sandbox, same limitation every prior session flagged for this kind of
+  change).
+
+### "Swap this meal"
+
+`REQUIREMENTS.md`'s backlog item: regenerate a single meal instead of the whole week.
+
+- **New `POST /api/meals/[mealId]/swap`**, synchronous (not the `after()`+202+poll pattern
+  `/api/generate` uses) - a single-meal call (`max_tokens: 4000`, a new `emit_meal` tool reusing
+  `mealSchema` directly via a new `mealToolInputSchema()`) is small/fast enough that the client can
+  just await the response, so no polling infrastructure was worth building for it. `maxDuration = 60`
+  covers the Anthropic call running slower than Vercel's short default.
+- **Batch-cook meals can't be swapped** (`SwapNotAllowedError`, 409) - a batch-cook source's
+  leftover relationship is described only on *its own* row (`leftoverForJson`); other days' meal
+  rows don't reference it back, so swapping it away would silently strand whatever those days'
+  content says about "using Monday's batch" with nothing left to describe. Simplest safe rule:
+  disallow it outright rather than trying to keep a swapped-in meal's batch/leftover shape in exact
+  sync with rows this call doesn't touch. The button isn't even rendered for these meals
+  client-side, so the 409 is a defensive backstop, not the primary UX.
+- **The replacement never introduces a new batch-cook or freezer-inventory relationship**
+  (`batchCook`/`usesFreezerItem` force-set to `null` server-side after parsing, not just prompted
+  for) - the rest of the week's plan was already generated around the meal being replaced, so a
+  swap creating new same-week leftover/freezer dependencies risks invalidating leftover-cap
+  accounting or freezer bookkeeping that already happened for other meals.
+- **`slot`/`track`/servings are force-overridden server-side** after parsing, same reasoning as
+  every other "validated with a forced tool call, still don't fully trust the model" decision in
+  this codebase - the swap must replace exactly the meal that was clicked, not something the model
+  decided to reinterpret.
+- **Whole-week shopping list re-aggregated in place** (`replaceShoppingItemsForWeek` - delete +
+  reinsert for that week) after the swap, using the exact same deterministic `aggregateShoppingList`
+  a fresh generation uses, just re-run for one week's current meals instead of a freshly-inserted
+  batch. `planJson` (the raw blob) is deliberately left stale after a swap - nothing else reads meal
+  content from it (the normalized `meals` table is what every view renders from), so the only
+  practical effect is the home page's week-summary teaser text not reflecting a later swap. Judged
+  not worth patching for a one-line, low-visibility teaser versus the complexity of also editing a
+  blob shaped like a full-week Claude response for a single-meal change.
+- Verified with a PGlite integration test (`tests/unit/swap-meal.test.ts`, mocked generation) proving
+  the batch-cook rejection, the in-place content replacement (slot/track/servings preserved), and
+  the shopping-list re-aggregation actually picking up the new ingredient.
+
+### Freezer inventory tracking
+
+`REQUIREMENTS.md`'s backlog item: "knowing what's already batch-frozen from a prior week and
+factoring that into future generation (skip re-cooking/re-buying accordingly)."
+
+- **New `freezer_inventory` table** (migration `0004`): one row per batch-freezing event (not one
+  row per household) - `itemName`, `portions`, `frozenFromWeekId` (informational only), decremented
+  or deleted as it's consumed. A new `meals.usesFreezerItem` column (nullable text) records which
+  inventory item a given meal reheated, mutually exclusive with `batchMakes` (a meal either makes a
+  new batch or reheats an old one, never both - enforced in the prompt and, for swaps, server-side).
+- **Stocking**: any meal with `batchCook.freezerPortions > 0` at persist time adds a
+  `freezer_inventory` row (`persistPlan`, after the existing image-resolution step). **Consumption**:
+  the household's current freezer inventory (name + portions) is listed in `buildUserPrompt`'s
+  message every generation; if Claude sets `meal.usesFreezerItem` to a name matching one exactly, the
+  matching row is decremented by that meal's total servings after persisting, deleted at zero. Portion
+  accounting is intentionally approximate (servings consumed, not a stricter unit-of-measure model) -
+  good enough for "should we cook this again or not," not trying to be a precise kitchen inventory
+  system.
+- **Consumption can't be verified without a live Claude call** (same sandbox limitation as the kids
+  prompt-tuning pass) - `MOCK_GENERATION`'s deterministic mock plan doesn't take freezer inventory as
+  an input the way a real call does, so extending the mock to fake "the model chose to use a freezer
+  item" would just be testing invented mock logic, not the real prompt-following behaviour. What *is*
+  tested (via `tests/unit/freezer-inventory.test.ts`, PGlite + mocked generation): stocking from a
+  real `freezerPortions` value, exact-name lookup, decrement-then-delete-at-zero, and manual removal -
+  the whole storage/query layer the consumption path depends on, just not the "does Claude actually
+  choose well" question itself.
+- **Settings UI**: a read-only list (household-level standing state, same section pattern as favorite
+  proteins/family occasions) plus a manual "Used it" removal per item (`DELETE
+  /api/freezer-items/[itemId]`, idempotent) for a household member who ate or binned something
+  without waiting for a future generation to consume it server-side. No manual "add" affordance -
+  deliberately kept as a faithful record of what generation actually froze, not a free-form todo
+  list, to avoid the inventory drifting from what's really in the freezer.
+- **MealCard badge**: a meal with `usesFreezerItem` set shows a small "From the freezer" badge
+  (sage-colored, distinct from the existing amber "Makes N" batch-cook badge, matching the "one
+  color, one job" reasoning from MVP 1.3's palette).
+
+### Goals selector
+
+`REQUIREMENTS.md`'s backlog item: a 4-way nutrition goal (lose weight / build muscle / balanced /
+reduce cholesterol), added after a dedicated nutritionist-review pass (see the earlier "Goals
+backlog item" entry above) that produced 5 concrete recommendations. All 5 are reflected below.
+
+- **Replaces `lowerCholesterol` entirely, not layered alongside it.** The nutritionist review's
+  recommendation was to fold the old boolean toggle into the new goal set as its own option
+  (`reduce_cholesterol`) rather than keep both live at once - two independent, un-composed nutrition
+  controls (a 4-way goal *and* a separate cholesterol checkbox) would raise the question of what
+  happens when someone picks "Build muscle" *and* checks the old toggle, with no good answer. One
+  control, four mutually exclusive options, is simpler for the household and for the prompt.
+- **`Goal` type and `households.goal` column** (migration `0005`, default `"lose_weight"` to match
+  the old always-on deficit framing so existing households see no behaviour change until they
+  actively pick something else). **`WeekIntake.goal`** replaces `WeekIntake.lowerCholesterol`,
+  pre-filled from the household default and fully overridable per week - the same pattern already
+  used for `proteins`/`budget`.
+- **Nutrition framing moved from `buildSystemPrompt` into `buildUserPrompt`/`buildSwapMealUserPrompt`.**
+  The old cholesterol framing lived in the household-level system prompt (which only ever takes
+  `household`, not `intake`) because it was a per-household toggle at the time. Goal is a per-week
+  resolved value now, so its framing belongs in the per-week user-prompt builders instead, which
+  already receive `intake`. Each of the 4 goals gets its own `GOAL_FRAMING` string:
+  - `lose_weight` / `build_muscle`: explicitly **never state a specific weight-loss rate, target
+    calorie number, weight target, timeline, or training programme** - a second nutritionist-review
+    recommendation, since this app has no way to know an individual's actual calorie needs and
+    stating a number would misrepresent general guidance as personalised advice.
+  - `balanced`: no deficit/surplus/calorie framing at all, just whole-food variety.
+  - `reduce_cholesterol`: unchanged from the old toggle's ingredient-level guidance (oats, oily fish,
+    nuts, legumes, olive oil, low-fat dairy, lean/trimmed meat, skinless poultry).
+- **Goal never applies to the kids track or to family-occasion meals** - both always use the
+  `balanced` framing regardless of the week's selected goal, since kids eat family-occasion meals too
+  and a deficit/surplus/cholesterol focus aimed at adults has no place there. This was true of the old
+  cholesterol toggle as well; carried forward unchanged.
+- **Disclaimer copy broadened to cover all 4 goals, not just the two the nutritionist flagged.** The
+  nutritionist reviews (both the original cholesterol-toggle review and this goals review) raised
+  disclaimer concerns specifically about `lose_weight`/`build_muscle`'s deficit/surplus language and
+  about `reduce_cholesterol`'s health-adjacent framing. Rather than showing different disclaimer text
+  per goal, one disclaimer line ("General everyday guidance, not individualised advice - talk to a
+  healthcare professional for anything specific to you.") is shown under the selector for all 4
+  options - simpler to maintain and avoids implying `balanced` is somehow exempt from the same
+  "this is not personalised advice" caveat.
+- **UI: two stacked 2-item `TabStrip` rows, not a 4-item single row.** The shared `TabStrip` component
+  is also used for Days needed, family occasion pickers, and Effort level, all of which assume a
+  narrow (2-3) segment count and were mobile-pressure-tested at that width (see MVP 1.3's UX/interaction
+  finding). Extending `TabStrip` itself to gracefully handle 4 segments on a 375px screen without
+  re-testing every other caller risked a layout regression elsewhere for a single new caller's
+  benefit. Two 2-item rows, both bound to the same state value/setter, form a visual 2x2 grid while
+  each row internally stays inside `TabStrip`'s already-verified layout envelope. Shown in both
+  `IntakeForm` (per-week, defaults from the household) and `SettingsForm` (household default, still
+  fully overridable per week) - verified end-to-end via Playwright against the mocked dev server:
+  saving a household default in Settings persists and is picked up as the Intake form's default on
+  the next visit, and submitting a week with a non-default goal selected reaches `/api/generate`
+  successfully.
+
+### Deliberately not built: multi-household support, push notifications
+
+`REQUIREMENTS.md`'s remaining two backlog items - the only two left unbuilt after this execution
+pass. Both are left ⬜ on purpose, not skipped by oversight: each needs a decision this session
+shouldn't make unilaterally under a "don't need me involved" mandate, because each decision would be
+expensive or awkward to reverse later and materially changes what gets built.
+
+- **Multi-household / multi-user support.** Every other backlog item this pass (Swap this meal,
+  Freezer inventory, Goals selector, the kids prompt-tuning pass) is additive: new columns, new
+  routes, new UI sections, none of it touching how a household is identified or authenticated. This
+  one isn't - `getOrCreateHousehold()` (`src/lib/db/queries.ts`) is single-row-by-design (§3 of
+  `PROJECT.md`, "v1 is single-household"), and the entire app - auth (`APP_PASSWORD`, one shared
+  password, no per-user accounts), every query, every API route - assumes exactly one household
+  exists. Building this for real means picking an auth model (per-user accounts? invite links? still
+  a single shared household, or genuinely multi-tenant?) and a data-model shape (household membership
+  table? row-level scoping on every existing query?) before a single line of feature code, and picking
+  wrong is the kind of thing that's painful to unwind once real data exists under the old shape.
+  That's a product/architecture decision for whoever owns this app to make explicitly, not something
+  to guess at while executing a backlog autonomously.
+- **Push notifications / reminders** (e.g. "start Monday's batch cook"). Unlike the app's existing
+  surface (Next.js pages/API routes with no background jobs or third-party services), this requires
+  picking and standing up delivery infrastructure the app doesn't have any of today: web push
+  (needs a service worker, VAPID keys, browser permission UX), email (needs a transactional-email
+  provider and a from-address), or SMS (needs a provider like Twilio and ongoing per-message cost).
+  Each has a real ongoing cost and operational surface (deliverability, unsubscribes, a provider
+  account with its own credentials) that outlasts this one PR - an infrastructure choice for the
+  operator to make, not a default this session should pick on its own.
+
+Both stay as ⬜ backlog items rather than being removed - they're still real, still wanted, just
+blocked on a decision outside this session's scope. Revisit either by asking the operator to pick a
+direction first (auth model for the first, delivery channel for the second), then treat it as its own
+scoped feature the same way Goals/Swap/Freezer were.

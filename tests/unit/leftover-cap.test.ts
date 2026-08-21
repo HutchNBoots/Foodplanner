@@ -18,6 +18,7 @@ function planWithLeftovers(leftoverCounts: number[]): WeekPlan {
           method: ["Cook it."],
           macrosPerAdultPortion: { kcal: 500, proteinG: 30, carbsG: 40, fatG: 15, fibreG: 5 },
           photoQuery: "chicken",
+          usesFreezerItem: null,
           batchCook:
             count > 0
               ? {
@@ -62,6 +63,7 @@ describe("countLeftoverSlots", () => {
               method: ["Cook it."],
               macrosPerAdultPortion: { kcal: 350, proteinG: 12, carbsG: 45, fatG: 10, fibreG: 4 },
               photoQuery: "pasta",
+              usesFreezerItem: null,
               batchCook: { makes: 8, leftoverFor: [], freezerPortions: 6 },
             },
           ],

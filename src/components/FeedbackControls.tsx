@@ -42,14 +42,17 @@ export function FeedbackControls({
 
   return (
     <div className="mt-3 border-t border-ink-100 pt-3">
-      <div className="flex flex-wrap gap-2">
+      {/* 44px min-height + gap-2.5, matching the tap-target floor MVP 1.3
+          established everywhere else (see DECISIONS.md's "Multi-agent app
+          review" entry - this row was the one place that pass missed). */}
+      <div className="flex flex-wrap gap-2.5">
         {OPTIONS.map((opt) => (
           <button
             key={opt.value}
             type="button"
             disabled={saving}
             onClick={() => submit(opt.value)}
-            className={`min-h-9 rounded-lg border px-3 py-1 text-xs font-medium transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ink-800 focus-visible:ring-offset-2 focus-visible:ring-offset-paper ${
+            className={`min-h-11 rounded-lg border px-3 py-1 text-xs font-medium transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ink-800 focus-visible:ring-offset-2 focus-visible:ring-offset-paper ${
               rating === opt.value
                 ? "border-sage-600 bg-sage-50 text-sage-700"
                 : "border-ink-300 text-ink-600 hover:bg-ink-50"
@@ -61,7 +64,7 @@ export function FeedbackControls({
         <button
           type="button"
           onClick={() => setShowNote((v) => !v)}
-          className="min-h-9 rounded-lg border border-ink-300 px-3 py-1 text-xs text-ink-500 transition hover:bg-ink-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ink-800 focus-visible:ring-offset-2 focus-visible:ring-offset-paper"
+          className="min-h-11 rounded-lg border border-ink-300 px-3 py-1 text-xs text-ink-500 transition hover:bg-ink-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ink-800 focus-visible:ring-offset-2 focus-visible:ring-offset-paper"
         >
           + note
         </button>

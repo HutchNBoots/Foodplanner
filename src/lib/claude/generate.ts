@@ -1,13 +1,23 @@
 import type Anthropic from "@anthropic-ai/sdk";
 import { CLAUDE_MODEL, getAnthropicClient } from "./client";
-import { countLeftoverSlots, MAX_LEFTOVER_SLOTS, weekPlanSchema, weekPlanToolInputSchema, type WeekPlan } from "./schema";
-import { buildSystemPrompt, buildUserPrompt } from "./systemPrompt";
-import { buildMockWeekPlan } from "./mock";
+import {
+  countLeftoverSlots,
+  MAX_LEFTOVER_SLOTS,
+  mealSchema,
+  mealToolInputSchema,
+  weekPlanSchema,
+  weekPlanToolInputSchema,
+  type MealPlanItem,
+  type WeekPlan,
+} from "./schema";
+import { buildSwapMealUserPrompt, buildSystemPrompt, buildUserPrompt } from "./systemPrompt";
+import { buildMockSwapMeal, buildMockWeekPlan } from "./mock";
 import type { WeekIntake, households } from "@/lib/db/schema";
 
 type Household = typeof households.$inferSelect;
 
 const TOOL_NAME = "emit_week_plan";
+const SWAP_TOOL_NAME = "emit_meal";
 
 export class GenerationError extends Error {}
 
@@ -17,6 +27,7 @@ export async function generateWeekPlan(params: {
   intake: WeekIntake;
   recentTitles: string[];
   recentFeedback: { rating: string; note: string | null; title: string }[];
+  freezerInventory: { itemName: string; portions: number }[];
 }): Promise<WeekPlan> {
   // Escape hatch for the e2e smoke test (and anyone poking at the app
   // without an Anthropic key yet) - see DECISIONS.md.
@@ -127,4 +138,92 @@ export async function generateWeekPlan(params: {
   }
 
   throw new GenerationError(`Failed to generate a valid week plan after retrying: ${lastError}`);
+}
+
+/** "Swap this meal" backlog feature (see DECISIONS.md) - a single-meal
+ * regeneration, structurally the same retry/validate loop as
+ * `generateWeekPlan` but scoped to one `emit_meal` call instead of a whole
+ * week, with a much smaller token budget. `slot`/`track`/servings are
+ * force-overridden on the result server-side (not just prompted for) so a
+ * model slip can't change what's actually being replaced. */
+export async function generateSwapMeal(params: {
+  household: Household;
+  intake: WeekIntake;
+  currentMeal: { slot: string; track: string; title: string; servingsAdults: number; servingsKids: number };
+  otherTitlesThisWeek: string[];
+  recentTitles: string[];
+}): Promise<MealPlanItem> {
+  const { currentMeal } = params;
+
+  if (process.env.MOCK_GENERATION === "1") {
+    return buildMockSwapMeal({
+      slot: currentMeal.slot as never,
+      track: currentMeal.track as never,
+      servingsAdults: currentMeal.servingsAdults,
+      servingsKids: currentMeal.servingsKids,
+    });
+  }
+
+  const client = getAnthropicClient();
+  const system = buildSystemPrompt(params.household);
+  const userMessage = buildSwapMealUserPrompt(params);
+
+  const tool = {
+    name: SWAP_TOOL_NAME,
+    description: "Emit the one replacement meal.",
+    input_schema: mealToolInputSchema() as Anthropic.Tool.InputSchema,
+  };
+
+  const messages: { role: "user" | "assistant"; content: string }[] = [
+    { role: "user", content: userMessage },
+  ];
+
+  let lastError = "";
+
+  for (let attempt = 0; attempt < 2; attempt++) {
+    const response = await client.messages
+      .stream({
+        model: CLAUDE_MODEL,
+        max_tokens: 4000,
+        system,
+        messages,
+        tools: [tool],
+        tool_choice: { type: "tool", name: SWAP_TOOL_NAME },
+      })
+      .finalMessage();
+
+    const toolUse = response.content.find((block) => block.type === "tool_use");
+    if (!toolUse || toolUse.type !== "tool_use") {
+      lastError = "Claude did not return a tool call.";
+      continue;
+    }
+
+    const parsed = mealSchema.safeParse(toolUse.input);
+    if (parsed.success) {
+      // Force the fields that must not change server-side, same reasoning
+      // as validating everything else server-side even with a forced tool
+      // call - never trust the model alone for the parts correctness
+      // actually depends on.
+      return {
+        ...parsed.data,
+        slot: currentMeal.slot as MealPlanItem["slot"],
+        track: currentMeal.track as MealPlanItem["track"],
+        servingsAdults: currentMeal.servingsAdults,
+        servingsKids: currentMeal.servingsKids,
+        batchCook: null,
+        usesFreezerItem: null,
+      };
+    }
+
+    lastError = parsed.error.message;
+    messages.push(
+      { role: "assistant", content: JSON.stringify(toolUse.input) },
+      {
+        role: "user",
+        content: `That didn't match the required schema: ${lastError}\n\nCall ${SWAP_TOOL_NAME} again with a corrected, complete meal.`,
+      },
+    );
+  }
+
+  throw new GenerationError(`Failed to generate a replacement meal after retrying: ${lastError}`);
 }

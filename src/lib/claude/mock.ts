@@ -1,5 +1,5 @@
 import { daysForIntake } from "@/lib/intake";
-import type { FamilyMeals, MealTimesNeeded, WeekIntake } from "@/lib/db/schema";
+import type { FamilyMeals, MealTimesNeeded, WeekIntake, meals as mealsTable } from "@/lib/db/schema";
 import type { MealPlanItem, WeekPlan } from "./schema";
 
 /** Deterministic stand-in for a real Claude call, used when `MOCK_GENERATION=1`
@@ -64,6 +64,7 @@ export function buildMockWeekPlan(params: {
           method: ["Preheat the oven.", "Roast everything together.", "Serve."],
           macrosPerAdultPortion: { kcal: 520, proteinG: 38, carbsG: 40, fatG: 18, fibreG: 8 },
           photoQuery: "chicken tray bake",
+          usesFreezerItem: null,
           batchCook:
             i === 0
               ? { makes: 4, leftoverFor: [{ day: days[2]?.dayOfWeek ?? dayOfWeek, slot: "lunch" }], freezerPortions: null }
@@ -87,6 +88,39 @@ export function buildMockWeekPlan(params: {
   };
 }
 
+/** Deterministic stand-in for a real single-meal swap call (see
+ * `generateSingleMeal`) - used when `MOCK_GENERATION=1`, same reasoning as
+ * `buildMockWeekPlan` above. Always returns a different, fixed placeholder
+ * dish for the given slot/track/servings so the swap is visibly different
+ * without needing a live Claude call. `batchCook` is always null - single-
+ * meal swaps never introduce a new batch-cook/leftover relationship (see
+ * DECISIONS.md's "Swap this meal" entry for why). */
+export function buildMockSwapMeal(original: {
+  slot: (typeof mealsTable.$inferSelect)["slot"];
+  track: (typeof mealsTable.$inferSelect)["track"];
+  servingsAdults: number;
+  servingsKids: number;
+}): MealPlanItem {
+  const slot = original.slot === "sunday_special" ? "dinner" : original.slot;
+  return {
+    slot,
+    track: original.track,
+    title: "Swapped-in lemon herb salmon",
+    servingsAdults: original.servingsAdults,
+    servingsKids: original.servingsKids,
+    ingredients: [
+      { name: "salmon fillet", quantity: 300, unit: "g", aisle: "Meat & fish", cholesterolLowering: true, lowSaturatedFat: true },
+      { name: "new potatoes", quantity: 400, unit: "g", aisle: "Fresh produce", cholesterolLowering: false, lowSaturatedFat: true },
+      { name: "lemon", quantity: 1, unit: null, aisle: "Fresh produce", cholesterolLowering: false, lowSaturatedFat: true },
+    ],
+    method: ["Preheat the oven to 200C.", "Roast the potatoes for 20 minutes.", "Add the salmon and lemon, roast a further 12-15 minutes until the salmon flakes easily.", "Serve."],
+    macrosPerAdultPortion: { kcal: 480, proteinG: 36, carbsG: 35, fatG: 20, fibreG: 5 },
+    photoQuery: "lemon herb salmon",
+    usesFreezerItem: null,
+    batchCook: null,
+  };
+}
+
 function adultBreakfast(dayIndex: number): MealPlanItem {
   return {
     slot: "breakfast",
@@ -101,6 +135,7 @@ function adultBreakfast(dayIndex: number): MealPlanItem {
     method: ["Toast the bread.", "Scramble the eggs.", "Serve together."],
     macrosPerAdultPortion: { kcal: 380, proteinG: 24, carbsG: 30, fatG: 18, fibreG: 4 },
     photoQuery: "scrambled eggs toast",
+    usesFreezerItem: null,
     batchCook: null,
   };
 }
@@ -119,6 +154,7 @@ function familyMeal(slot: "breakfast" | "lunch" | "dinner", title: string): Meal
     method: ["Prepare everything together.", "Serve family-style."],
     macrosPerAdultPortion: { kcal: 600, proteinG: 30, carbsG: 55, fatG: 25, fibreG: 6 },
     photoQuery: "family meal",
+    usesFreezerItem: null,
     batchCook: null,
   };
 }
@@ -141,6 +177,7 @@ function kidsMeal(slot: "breakfast" | "lunch" | "dinner", title: string, dayInde
     method: ["Cook the pasta.", "Stir through the sauce.", "Serve."],
     macrosPerAdultPortion: { kcal: 350, proteinG: 12, carbsG: 45, fatG: 12, fibreG: 4 },
     photoQuery: "kids pasta",
+    usesFreezerItem: null,
     batchCook:
       slot === "dinner" && dayIndex === 0
         ? { makes: 8, leftoverFor: [], freezerPortions: 4 }

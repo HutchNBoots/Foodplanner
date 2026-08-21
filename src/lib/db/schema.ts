@@ -42,6 +42,15 @@ export const households = pgTable("households", {
     .$defaultFn(() => [...PROTEIN_TYPES]),
   store: text("store").notNull().default("Sainsbury's"),
   budgetDefault: text("budget_default"),
+  /** Household default nutrition goal (backlog item, see DECISIONS.md's
+   * "Goals selector" entry) - drives adult/family-occasion meal framing,
+   * fully overridable per week in the intake form (same pattern as
+   * `favoriteProteins`/`budgetDefault`). Defaults to "lose_weight" so
+   * existing households see no change in behaviour - that's what v1's
+   * hardcoded "moderate deficit, high protein" framing already was. Never
+   * applied to the kids track, and family-occasion meals always use
+   * "balanced" regardless of this setting (kids eat those too). */
+  goal: text("goal").notNull().default("lose_weight").$type<Goal>(),
   createdAt: createdAt(),
   updatedAt: text("updated_at")
     .notNull()
@@ -103,6 +112,32 @@ export const meals = pgTable("meals", {
    * `leftoverForJson` (same-week reuse) - MVP 1.2, see DECISIONS.md.
    * Null/0 means nothing from this batch is being frozen. */
   freezerPortions: integer("freezer_portions"),
+  /** Freezer inventory tracking (backlog item, see DECISIONS.md) - the exact
+   * `freezerInventory.itemName` this meal reheats instead of being cooked
+   * fresh, or null for an ordinary freshly-cooked meal. Mutually exclusive
+   * with `batchMakes` - a meal either makes a new batch or reheats an old
+   * one, never both. */
+  usesFreezerItem: text("uses_freezer_item"),
+  createdAt: createdAt(),
+});
+
+/** Freezer inventory tracking (backlog item, see DECISIONS.md) - what's
+ * already batch-frozen from a prior week's `freezerPortions`, so future
+ * generations can suggest reheating it instead of cooking/buying fresh.
+ * One row per batch-freezing event, not one row per household - `portions`
+ * decrements (and the row is deleted at zero) as generations consume it, or
+ * a household member removes it manually after eating/discarding it. */
+export const freezerInventory = pgTable("freezer_inventory", {
+  id: id(),
+  householdId: text("household_id")
+    .notNull()
+    .references(() => households.id, { onDelete: "cascade" }),
+  itemName: text("item_name").notNull(),
+  portions: integer("portions").notNull(),
+  /** Which week originally froze this batch - informational only (shown in
+   * Settings), not a hard dependency; the row survives if the week is ever
+   * removed some other way. */
+  frozenFromWeekId: text("frozen_from_week_id").references(() => weeks.id, { onDelete: "set null" }),
   createdAt: createdAt(),
 });
 
@@ -189,6 +224,13 @@ export type ImageCredit = { photographerName: string; photographerUrl: string; u
 
 export type FeedbackRating = "loved" | "too_much_effort" | "too_bland" | "repeat";
 
+/** Nutrition goal (backlog item, see DECISIONS.md's "Goals selector" entry) -
+ * single-select, drives adult/family-occasion meal framing in the system
+ * prompt. Folds in what used to be a separate `lowerCholesterol` toggle as
+ * "reduce_cholesterol" - nutritionist review recommended one choice rather
+ * than two overlapping controls. Never applied to the kids track. */
+export type Goal = "lose_weight" | "build_muscle" | "balanced" | "reduce_cholesterol";
+
 /** The three family meal occasions (MVP 1.2, see DECISIONS.md) - replaces
  * MVP1's single `sundayMode`. `satBreakfast` has no "bbq" option (see
  * DECISIONS.md's "Family-occasion mode options" entry). */
@@ -218,8 +260,8 @@ export type WeekIntake = {
   budget: string;
   effort: "quick" | "mixed" | "more_cooking";
   notes: string;
-  /** Per-week cholesterol-lowering focus toggle - biases generation toward
-   * ingredients with recognised LDL-cholesterol-lowering properties and is
-   * shown as a heart-icon badge on qualifying ingredients (see DECISIONS.md). */
-  lowerCholesterol: boolean;
+  /** This week's resolved nutrition goal (see `Goal` above) - pre-filled from
+   * the household default, fully overridable per week, same pattern as
+   * `proteins`/`budget`. */
+  goal: Goal;
 };

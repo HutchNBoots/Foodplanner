@@ -27,7 +27,7 @@ const sampleIntake = {
   budget: "",
   effort: "mixed" as const,
   notes: "",
-  lowerCholesterol: false,
+  goal: "lose_weight" as const,
 };
 
 describe("week ordering when weekStartDate is duplicated", () => {

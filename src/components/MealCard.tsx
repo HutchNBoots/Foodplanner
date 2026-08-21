@@ -3,6 +3,7 @@ import { RecipePhoto } from "./RecipePhoto";
 import { FeedbackControls } from "./FeedbackControls";
 import { IngredientLine } from "./IngredientLine";
 import { IndexTab } from "./IndexTab";
+import { SwapMealButton } from "./SwapMealButton";
 import { TRACK_COLOR_CLASSES, TRACK_META } from "@/lib/design/tracks";
 import { trackForMeal } from "@/lib/meals/track";
 
@@ -35,6 +36,14 @@ export function MealCard({ meal, feedbackRating }: { meal: Meal; feedbackRating:
                 ? ` · saved for ${meal.leftoverForJson.map((l) => `${l.day} ${SLOT_LABEL[l.slot] ?? l.slot}`).join(", ")}`
                 : ""}
               {meal.freezerPortions ? ` · ${meal.freezerPortions} frozen for later` : ""}
+            </span>
+          )}
+          {/* Freezer inventory tracking (backlog item, see DECISIONS.md) -
+              mutually exclusive with batchMakes above (a meal either makes a
+              new batch or reheats an old one, never both). */}
+          {meal.usesFreezerItem && (
+            <span className="rounded-full bg-sage-50 px-2.5 py-0.5 text-xs font-medium text-sage-700">
+              From the freezer
             </span>
           )}
         </div>
@@ -77,6 +86,11 @@ export function MealCard({ meal, feedbackRating }: { meal: Meal; feedbackRating:
             ))}
           </ol>
         </details>
+
+        {/* Batch-cook meals aren't offered a swap - other days rely on them
+            as leftovers, and the server would reject it anyway (see
+            DECISIONS.md's "Swap this meal" entry). */}
+        {!meal.batchMakes && <SwapMealButton mealId={meal.id} />}
 
         <FeedbackControls
           mealId={meal.id}

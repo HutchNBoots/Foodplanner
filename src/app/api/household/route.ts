@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { getOrCreateHousehold, updateHousehold } from "@/lib/db/queries";
+import { GOALS } from "@/lib/intake";
 
 const householdSchema = z.object({
   name: z.string().min(1),
@@ -16,6 +17,7 @@ const householdSchema = z.object({
   store: z.string().min(1),
   budgetDefault: z.string().optional(),
   favoriteProteins: z.array(z.string()),
+  goal: z.enum(GOALS),
 });
 
 export async function PATCH(request: Request) {

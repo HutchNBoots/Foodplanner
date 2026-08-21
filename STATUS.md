@@ -5,6 +5,53 @@ Start here for "where are we" - the other docs are: `PROJECT.md` (original spec)
 (method-step eval rubric/results), `README.md` (local dev), `DEPLOY.md` (deploy steps). This file is
 just the up-to-date summary of where things actually stand.
 
+## Backlog execution pass - autonomous, per explicit operator instruction
+
+After MVP 1.3, its follow-ups, and a 4-persona (UX/CX/end-user/nutritionist) multi-agent app review
+all merged (PR #7), the operator asked for a nutritionist-reviewed "Goals" backlog item to be written
+up (not built), then said: *"execute all the backlog across all topics - update the decision log etc
+but I don't need to be involved."* This section covers everything built under that instruction, all
+on branch `claude/visual-identity-mobile-ux-t3dfeh` (reset from latest `main`), currently pushed but
+**not yet merged - no PR opened for this branch yet**. Full reasoning for every item below is in
+`DECISIONS.md`'s "Backlog execution" section; this is the short version. `tsc`, `eslint`, `vitest`
+(104 tests), and `playwright` are all green as of the last commit on this branch.
+
+Scope was deliberately read as `REQUIREMENTS.md`'s 6-item Backlog section specifically - not the
+separate, never-formalized findings from the earlier multi-agent review (those were reported to the
+operator in chat, not logged as backlog items, so they're out of scope for "execute the backlog").
+
+- ✅ **Generation prompt-tuning pass for kids meals** - within-week variety guidance and a
+  clarification that kids meals need the same instructive method-step bar as every other track.
+  Prompt *quality* can only be verified by content-assertion tests here (no live `ANTHROPIC_API_KEY`
+  in this sandbox), not a live-generation eval.
+- ✅ **"Swap this meal"** - regenerate a single meal in place (`POST /api/meals/[mealId]/swap`),
+  re-aggregating the week's shopping list afterward. Rejects swapping a batch-cook meal other days
+  rely on as leftovers (`SwapNotAllowedError`, 409, button hidden client-side) rather than silently
+  stranding those references.
+- ✅ **Freezer inventory tracking** - a `freezer_inventory` table stocked whenever a meal batch-freezes
+  portions, listed in the generation prompt so Claude can choose to reheat instead of cook/buy fresh
+  (`meal.usesFreezerItem`), a read-only Settings list with manual "Used it" removal, and a "From the
+  freezer" badge on the recipe card.
+- ✅ **Household/per-week "Goals" selector** - Lose weight / Build muscle / Balanced / Reduce
+  cholesterol, replacing both the old hardcoded adult-deficit default and the separate
+  `lowerCholesterol` toggle with one nutritionist-reviewed, goal-conditional framing (no fixed deficit
+  for Build muscle, no stated weight/calorie/timeline targets ever). Household Settings default with a
+  fully overridable per-week choice, two stacked 2-item `TabStrip` rows in both `IntakeForm` and
+  `SettingsForm`, one disclaimer line shown for all four options. Verified end-to-end with Playwright
+  against the mocked dev server (Settings save → Intake form default → generation submit), plus mobile
+  (375px) screenshots of both selectors.
+- ⬜ **Multi-household / multi-user support** - deliberately left unbuilt. Every other item above is
+  additive; this one requires picking an auth model and a data-model shape before any feature code,
+  which is a product/architecture decision for the operator to make explicitly, not one to guess at
+  autonomously.
+- ⬜ **Push notifications / reminders** - deliberately left unbuilt. Requires standing up delivery
+  infrastructure the app has none of today (web push, transactional email, or SMS), each with its own
+  ongoing cost and operational surface - an operator infrastructure choice, not a default to pick
+  unilaterally.
+
+**Not yet done as of this writing**: opening a PR for this branch and merging it. See `DECISIONS.md`
+for the full "Deliberately not built" reasoning on the last two items.
+
 ## MVP 1.3 - Visual identity & mobile UX pass, shipped and merged, plus a follow-up
 
 Design-refresh milestone (`REQUIREMENTS.md`'s "MVP 1.3"), built on the session-runner-assigned

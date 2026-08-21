@@ -1,12 +1,14 @@
-import { and, desc, eq, inArray } from "drizzle-orm";
+import { and, desc, eq, inArray, ne } from "drizzle-orm";
 import { db } from "./client";
 import {
   feedback,
+  freezerInventory,
   households,
   meals,
   shoppingItems,
   weeks,
   type FeedbackRating,
+  type Goal,
   type Ingredient,
   type LeftoverRef,
   type UsedInRef,
@@ -46,6 +48,7 @@ export async function updateHousehold(
     store: string;
     budgetDefault: string | null;
     favoriteProteins: string[];
+    goal: Goal;
   }>,
 ) {
   const updated = await db
@@ -232,6 +235,74 @@ export async function getMeal(mealId: string) {
   return meal ?? null;
 }
 
+/** All other meals in the same week as `mealId` - used by "swap this meal"
+ * (see DECISIONS.md) to tell the generation prompt what not to duplicate. */
+export async function getOtherMealsInWeek(weekId: string, excludeMealId: string) {
+  return db
+    .select()
+    .from(meals)
+    .where(and(eq(meals.weekId, weekId), ne(meals.id, excludeMealId)));
+}
+
+/** Every meal currently in a week - used to re-aggregate the shopping list
+ * after "swap this meal" changes one meal's ingredients (see DECISIONS.md). */
+export async function getMealsForWeek(weekId: string) {
+  return db.select().from(meals).where(eq(meals.weekId, weekId));
+}
+
+/** "Swap this meal" (see DECISIONS.md) - replaces one meal's content in
+ * place (same row/id, so feedback history stays attached to the same meal
+ * the household is now looking at) rather than deleting and re-inserting. */
+export async function replaceMealContent(
+  mealId: string,
+  patch: {
+    title: string;
+    servingsAdults: number;
+    servingsKids: number;
+    ingredientsJson: Ingredient[];
+    methodJson: string[];
+    kcal: number;
+    proteinG: number;
+    carbsG: number;
+    fatG: number;
+    fibreG: number;
+  },
+) {
+  const updated = await db
+    .update(meals)
+    .set({
+      ...patch,
+      // A swapped-in meal never carries over the old meal's batch/leftover
+      // relationship or cached photo - both describe the *old* dish (see
+      // DECISIONS.md's "Swap this meal" entry on why batch-cook meals can't
+      // be swapped at all, and the swap route re-resolves a fresh photo).
+      batchMakes: null,
+      leftoverForJson: null,
+      freezerPortions: null,
+      imageUrl: null,
+      imageSource: null,
+      imageCreditJson: null,
+    })
+    .where(eq(meals.id, mealId))
+    .returning();
+  return firstOrThrow(updated);
+}
+
+/** Replaces a week's whole shopping-list snapshot (see DECISIONS.md's "Swap
+ * this meal" entry) - re-aggregated server-side from that week's current
+ * meals after one meal's ingredients changed, same deterministic aggregation
+ * `finalizeWeek` uses for a fresh generation, just re-run for one week
+ * in place instead of as part of first persisting it. */
+export async function replaceShoppingItemsForWeek(
+  weekId: string,
+  items: (typeof shoppingItems.$inferInsert)[],
+) {
+  await db.delete(shoppingItems).where(eq(shoppingItems.weekId, weekId));
+  if (items.length) {
+    await db.insert(shoppingItems).values(items);
+  }
+}
+
 export async function setMealImage(
   mealId: string,
   image: { url: string; source: "unsplash" | "illustration"; credit?: { photographerName: string; photographerUrl: string; unsplashUrl: string } },
@@ -252,6 +323,65 @@ export async function setShoppingItemChecked(itemId: string, checked: boolean) {
     .where(eq(shoppingItems.id, itemId))
     .returning();
   return updated[0] ?? null;
+}
+
+// --- Freezer inventory (backlog item, see DECISIONS.md) ---
+
+/** Current freezer inventory for a household, newest-frozen first - what a
+ * generation call sees, and what Settings shows. */
+export async function getFreezerInventory(householdId: string) {
+  return db
+    .select()
+    .from(freezerInventory)
+    .where(eq(freezerInventory.householdId, householdId))
+    .orderBy(desc(freezerInventory.createdAt));
+}
+
+/** Stocks the freezer from a meal's `batchCook.freezerPortions` at
+ * generation-persist time (see `persistPlan`/`swapMealInPlace`). */
+export async function addFreezerItem(
+  householdId: string,
+  itemName: string,
+  portions: number,
+  frozenFromWeekId: string | null = null,
+) {
+  const inserted = await db
+    .insert(freezerInventory)
+    .values({ householdId, itemName, portions, frozenFromWeekId })
+    .returning();
+  return firstOrThrow(inserted);
+}
+
+/** Looks up a freezer-inventory row by its exact name, for matching a
+ * generation's `meal.usesFreezerItem` (given the exact name in the prompt)
+ * back to the row to consume - see DECISIONS.md. */
+export async function findFreezerItemByName(householdId: string, itemName: string) {
+  const [row] = await db
+    .select()
+    .from(freezerInventory)
+    .where(and(eq(freezerInventory.householdId, householdId), eq(freezerInventory.itemName, itemName)));
+  return row ?? null;
+}
+
+/** Consumes `portions` from a freezer-inventory row when a generation uses
+ * it (`meal.usesFreezerItem`) - deletes the row outright once it hits zero
+ * rather than leaving a stale zero-portion row around. */
+export async function consumeFreezerItem(id: string, portionsUsed: number) {
+  const [row] = await db.select().from(freezerInventory).where(eq(freezerInventory.id, id));
+  if (!row) return;
+
+  const remaining = row.portions - portionsUsed;
+  if (remaining <= 0) {
+    await db.delete(freezerInventory).where(eq(freezerInventory.id, id));
+  } else {
+    await db.update(freezerInventory).set({ portions: remaining }).where(eq(freezerInventory.id, id));
+  }
+}
+
+/** Manual "we ate/binned this" removal (Settings) - a household member
+ * clearing an item without waiting for a future generation to consume it. */
+export async function removeFreezerItem(id: string) {
+  await db.delete(freezerInventory).where(eq(freezerInventory.id, id));
 }
 
 export type { Ingredient, LeftoverRef, UsedInRef };
