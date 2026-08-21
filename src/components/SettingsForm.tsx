@@ -20,6 +20,20 @@ const FAMILY_OCCASIONS = [
 
 const MODE_LABEL: Record<string, string> = { sit_down: "Sit-down", bbq: "BBQ", skip: "Skip" };
 
+type Goal = "lose_weight" | "build_muscle" | "balanced" | "reduce_cholesterol";
+
+// Same two-row TabStrip pattern as IntakeForm's per-week goal picker (see
+// DECISIONS.md's "Goals selector" entry) - keeps this the household default,
+// still fully overridable per week.
+const GOAL_OPTIONS_ROW1: { value: Goal; label: string }[] = [
+  { value: "lose_weight", label: "Lose weight" },
+  { value: "build_muscle", label: "Build muscle" },
+];
+const GOAL_OPTIONS_ROW2: { value: Goal; label: string }[] = [
+  { value: "balanced", label: "Balanced" },
+  { value: "reduce_cholesterol", label: "Reduce cholesterol" },
+];
+
 export function SettingsForm({
   household,
   proteinTypes,
@@ -40,6 +54,7 @@ export function SettingsForm({
     store: household.store,
     budgetDefault: household.budgetDefault ?? "",
     favoriteProteins: household.favoriteProteins,
+    goal: household.goal as Goal,
   });
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
@@ -187,6 +202,23 @@ export function SettingsForm({
             />
           </div>
         </div>
+      </TrackSection>
+
+      <TrackSection color="ink" label="Nutrition goal">
+        <div>
+          <p className="mt-1 text-xs text-ink-500">
+            Default nutrition framing for adult meals each week - still fully overridable per week on the
+            intake form. Kids and family-occasion meals always stay balanced regardless of this setting.
+          </p>
+        </div>
+        <div className="space-y-1">
+          <TabStrip name="Nutrition goal (1 of 2)" options={GOAL_OPTIONS_ROW1} value={form.goal} onChange={(v) => set("goal", v)} />
+          <TabStrip name="Nutrition goal (2 of 2)" options={GOAL_OPTIONS_ROW2} value={form.goal} onChange={(v) => set("goal", v)} />
+        </div>
+        <p className="text-xs text-ink-500">
+          General everyday guidance, not individualised advice - talk to a healthcare professional for anything
+          specific to you.
+        </p>
       </TrackSection>
 
       <TrackSection color="ink" label="Proteins">

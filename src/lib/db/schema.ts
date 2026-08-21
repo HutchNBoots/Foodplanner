@@ -42,6 +42,15 @@ export const households = pgTable("households", {
     .$defaultFn(() => [...PROTEIN_TYPES]),
   store: text("store").notNull().default("Sainsbury's"),
   budgetDefault: text("budget_default"),
+  /** Household default nutrition goal (backlog item, see DECISIONS.md's
+   * "Goals selector" entry) - drives adult/family-occasion meal framing,
+   * fully overridable per week in the intake form (same pattern as
+   * `favoriteProteins`/`budgetDefault`). Defaults to "lose_weight" so
+   * existing households see no change in behaviour - that's what v1's
+   * hardcoded "moderate deficit, high protein" framing already was. Never
+   * applied to the kids track, and family-occasion meals always use
+   * "balanced" regardless of this setting (kids eat those too). */
+  goal: text("goal").notNull().default("lose_weight").$type<Goal>(),
   createdAt: createdAt(),
   updatedAt: text("updated_at")
     .notNull()
@@ -215,6 +224,13 @@ export type ImageCredit = { photographerName: string; photographerUrl: string; u
 
 export type FeedbackRating = "loved" | "too_much_effort" | "too_bland" | "repeat";
 
+/** Nutrition goal (backlog item, see DECISIONS.md's "Goals selector" entry) -
+ * single-select, drives adult/family-occasion meal framing in the system
+ * prompt. Folds in what used to be a separate `lowerCholesterol` toggle as
+ * "reduce_cholesterol" - nutritionist review recommended one choice rather
+ * than two overlapping controls. Never applied to the kids track. */
+export type Goal = "lose_weight" | "build_muscle" | "balanced" | "reduce_cholesterol";
+
 /** The three family meal occasions (MVP 1.2, see DECISIONS.md) - replaces
  * MVP1's single `sundayMode`. `satBreakfast` has no "bbq" option (see
  * DECISIONS.md's "Family-occasion mode options" entry). */
@@ -244,8 +260,8 @@ export type WeekIntake = {
   budget: string;
   effort: "quick" | "mixed" | "more_cooking";
   notes: string;
-  /** Per-week cholesterol-lowering focus toggle - biases generation toward
-   * ingredients with recognised LDL-cholesterol-lowering properties and is
-   * shown as a heart-icon badge on qualifying ingredients (see DECISIONS.md). */
-  lowerCholesterol: boolean;
+  /** This week's resolved nutrition goal (see `Goal` above) - pre-filled from
+   * the household default, fully overridable per week, same pattern as
+   * `proteins`/`budget`. */
+  goal: Goal;
 };

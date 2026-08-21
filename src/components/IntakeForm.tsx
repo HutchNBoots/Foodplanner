@@ -12,6 +12,7 @@ type OccasionMode = "sit_down" | "bbq" | "skip";
 type Effort = "quick" | "mixed" | "more_cooking";
 type MealTime = "breakfast" | "lunch" | "dinner";
 type MealTimesNeeded = { breakfast: boolean; lunch: boolean; dinner: boolean };
+type Goal = "lose_weight" | "build_muscle" | "balanced" | "reduce_cholesterol";
 
 const MEAL_TIMES: { key: MealTime; label: string }[] = [
   { key: "breakfast", label: "Breakfast" },
@@ -53,6 +54,21 @@ const EFFORT_OPTIONS: { value: Effort; label: string }[] = [
   { value: "more_cooking", label: "More cooking" },
 ];
 
+// Rendered as two stacked 2-item TabStrip rows (both bound to the same
+// state) rather than one 4-item TabStrip, so the shared TabStrip component
+// never has to support more than 3 segments in a row - avoids risking a
+// layout regression on its other single-select uses (Days needed, family
+// occasion pickers, Effort level) which all assume a narrow segment count
+// (see DECISIONS.md's "Goals selector" entry).
+const GOAL_OPTIONS_ROW1: { value: Goal; label: string }[] = [
+  { value: "lose_weight", label: "Lose weight" },
+  { value: "build_muscle", label: "Build muscle" },
+];
+const GOAL_OPTIONS_ROW2: { value: Goal; label: string }[] = [
+  { value: "balanced", label: "Balanced" },
+  { value: "reduce_cholesterol", label: "Reduce cholesterol" },
+];
+
 function optionLabel<T extends string>(options: { value: T; label: string }[], value: T): string {
   return options.find((o) => o.value === value)?.label ?? value;
 }
@@ -79,6 +95,7 @@ export function IntakeForm({
   defaultSunLunchMode,
   defaultBudget,
   defaultProteins,
+  defaultGoal,
   recentTitles,
   dishStyles,
   deemphasised,
@@ -90,6 +107,7 @@ export function IntakeForm({
   defaultSunLunchMode: OccasionMode;
   defaultBudget: string;
   defaultProteins: string[];
+  defaultGoal: Goal;
   recentTitles: string[];
   dishStyles: string[];
   deemphasised: string[];
@@ -119,10 +137,10 @@ export function IntakeForm({
     dinner: true,
   });
   const [selectedStyles, setSelectedStyles] = useState<string[]>([]);
-  // Per-week cholesterol-lowering focus toggle - biases generation toward
-  // ingredients with recognised LDL-cholesterol-lowering properties, shown
-  // as a heart-icon badge on qualifying ingredients (see DECISIONS.md).
-  const [lowerCholesterol, setLowerCholesterol] = useState(false);
+  // Per-week nutrition goal (replaces the old lowerCholesterol toggle - see
+  // DECISIONS.md's "Goals selector" entry). Pre-filled from the household
+  // default, fully overridable per week.
+  const [goal, setGoal] = useState<Goal>(defaultGoal);
   // Defaults from the household's favorite proteins (MVP 2.1, see
   // DECISIONS.md) instead of always defaulting to every protein - still
   // fully overridable per week.
@@ -170,7 +188,7 @@ export function IntakeForm({
         budget,
         effort,
         notes,
-        lowerCholesterol,
+        goal,
       }),
     });
 
@@ -274,18 +292,17 @@ export function IntakeForm({
           )}
         </div>
         <div>
-          <span className="label">Nutrition focus</span>
-          <div className="flex flex-wrap gap-2.5">
-            <Chip
-              label="♥ Lower cholesterol"
-              active={lowerCholesterol}
-              onClick={() => setLowerCholesterol((v) => !v)}
-            />
+          <span className="label">Nutrition goal</span>
+          <div className="space-y-1">
+            <TabStrip name="Nutrition goal (1 of 2)" options={GOAL_OPTIONS_ROW1} value={goal} onChange={setGoal} />
+            <TabStrip name="Nutrition goal (2 of 2)" options={GOAL_OPTIONS_ROW2} value={goal} onChange={setGoal} />
           </div>
           <p className="mt-2 text-xs text-ink-500">
-            Favours ingredients with recognised cholesterol-lowering properties (oats, oily fish, nuts, legumes,
-            olive oil...) and lower-saturated-fat choices (low-fat dairy, lean/trimmed meat, skinless poultry...)
-            this week - qualifying ingredients are marked on the recipe.
+            Shapes this week&apos;s adult meals only - kids and family-occasion meals always stay balanced.
+            &quot;Reduce cholesterol&quot; favours ingredients with recognised cholesterol-lowering properties
+            (oats, oily fish, nuts, legumes, olive oil...) and lower-saturated-fat choices (low-fat dairy,
+            lean/trimmed meat, skinless poultry...), marked on qualifying ingredients. General everyday guidance,
+            not individualised advice - talk to a healthcare professional for anything specific to you.
           </p>
         </div>
       </TrackSection>

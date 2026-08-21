@@ -442,16 +442,18 @@ Per `PROJECT.md` §9, listed but explicitly deferred — pick up if/when priorit
   tests, not a live-generation eval. (The other half of this item, an adult breakfast appearing when
   it shouldn't have, is resolved as of MVP 2.1 - adult breakfast is now an intentional per-week
   toggle rather than an always-out-of-scope meal, so it appearing is no longer a bug.)
-- ⬜ **Household/per-week "Goals" selector** — Lose weight / Build muscle / Balanced / Reduce
-  cholesterol, replacing today's hardcoded "moderate deficit, high protein" adult default with a
-  chosen framing. Nutritionist-reviewed before being written up here (not built) - see
-  `DECISIONS.md`'s "Backlog item: household/per-week 'Goals' selector" entry for the full
-  recommendations to build from: single-select (fold "Reduce cholesterol" into the same four rather
-  than keeping it a separate toggle), the deficit framing has to become goal-conditional rather than
-  a fixed default ("Build muscle" is nutritionally incompatible with a deficit), a fixed conservative
-  scope + one-time disclaimer for "Lose weight"/"Build muscle" (no user-typed targets, ever), a
-  household Settings default with a per-week override (same pattern as `notes`), and kids/family-
-  occasion meals must stay on the "Balanced" framing regardless of the household's selected goal.
+- ✅ **Household/per-week "Goals" selector** — Lose weight / Build muscle / Balanced / Reduce
+  cholesterol, replacing the old hardcoded "moderate deficit, high protein" adult default and the
+  separate `lowerCholesterol` toggle with one chosen framing. Nutritionist-reviewed before being
+  built - see `DECISIONS.md`'s "Backlog item: household/per-week 'Goals' selector" (the review) and
+  "Goals selector" (the build) entries. Shipped per the review's 5 recommendations: single-select
+  (`reduce_cholesterol` folded into the same four rather than a separate toggle), goal-conditional
+  nutrition framing per option (`build_muscle` is explicitly not a deficit), no user-typed or
+  model-stated weight/calorie/timeline targets ever for `lose_weight`/`build_muscle`, a
+  `households.goal` Settings default with a fully overridable per-week `WeekIntake.goal` (same
+  pattern as `notes`/`proteins`/`budget`), and kids/family-occasion meals always staying on the
+  "Balanced" framing regardless of the selected goal. UI: two stacked 2-item `TabStrip` rows in both
+  `IntakeForm` and `SettingsForm`, plus a disclaimer line shown under the selector for all 4 options.
 
 ## Explicitly not planned
 

@@ -8,6 +8,7 @@ import {
   shoppingItems,
   weeks,
   type FeedbackRating,
+  type Goal,
   type Ingredient,
   type LeftoverRef,
   type UsedInRef,
@@ -47,6 +48,7 @@ export async function updateHousehold(
     store: string;
     budgetDefault: string | null;
     favoriteProteins: string[];
+    goal: Goal;
   }>,
 ) {
   const updated = await db

@@ -73,6 +73,7 @@ const fakeHousehold: Household = {
   favoriteProteins: [...PROTEIN_TYPES],
   store: "Sainsbury's",
   budgetDefault: null,
+  goal: "lose_weight",
   createdAt: new Date().toISOString(),
   updatedAt: new Date().toISOString(),
 };
@@ -92,7 +93,7 @@ async function main() {
       budget: "",
       effort: "mixed",
       notes: "",
-      lowerCholesterol: false,
+      goal: "lose_weight",
     },
     recentTitles: [],
     recentFeedback: [],

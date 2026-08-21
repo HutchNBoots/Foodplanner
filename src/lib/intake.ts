@@ -10,6 +10,11 @@ export const PROTEIN_TYPES = [
   "Plant-based",
 ] as const;
 
+// Nutrition goal (backlog item, see DECISIONS.md's "Goals selector" entry) -
+// folds in what used to be a separate "Lower cholesterol" toggle as
+// "reduce_cholesterol", per the nutritionist review's recommendation.
+export const GOALS = ["lose_weight", "build_muscle", "balanced", "reduce_cholesterol"] as const;
+
 // The three family meal occasions (MVP 1.2, see DECISIONS.md) - Saturday
 // breakfast has no "bbq" option (a BBQ breakfast doesn't make sense), the
 // other two keep the full sit-down/BBQ/skip set from MVP1's Sunday mode.
@@ -44,9 +49,9 @@ export const weekIntakeSchema = z.object({
   budget: z.string().default(""),
   effort: z.enum(["quick", "mixed", "more_cooking"]),
   notes: z.string().default(""),
-  // Per-week cholesterol-lowering focus toggle (see DECISIONS.md) - defaults
-  // off if the client ever omits it, same pattern as every other toggle here.
-  lowerCholesterol: z.boolean().default(false),
+  // Defaults to the same framing v1's hardcoded nutrition rule always used
+  // (see DECISIONS.md) if the client ever omits it.
+  goal: z.enum(GOALS).default("lose_weight"),
 });
 
 export type WeekIntakeInput = z.infer<typeof weekIntakeSchema>;

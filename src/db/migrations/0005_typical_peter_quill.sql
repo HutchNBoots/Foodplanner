@@ -1,0 +1,1 @@
+ALTER TABLE "households" ADD COLUMN "goal" text DEFAULT 'lose_weight' NOT NULL;

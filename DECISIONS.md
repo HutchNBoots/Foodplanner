@@ -1046,3 +1046,57 @@ factoring that into future generation (skip re-cooking/re-buying accordingly)."
 - **MealCard badge**: a meal with `usesFreezerItem` set shows a small "From the freezer" badge
   (sage-colored, distinct from the existing amber "Makes N" batch-cook badge, matching the "one
   color, one job" reasoning from MVP 1.3's palette).
+
+### Goals selector
+
+`REQUIREMENTS.md`'s backlog item: a 4-way nutrition goal (lose weight / build muscle / balanced /
+reduce cholesterol), added after a dedicated nutritionist-review pass (see the earlier "Goals
+backlog item" entry above) that produced 5 concrete recommendations. All 5 are reflected below.
+
+- **Replaces `lowerCholesterol` entirely, not layered alongside it.** The nutritionist review's
+  recommendation was to fold the old boolean toggle into the new goal set as its own option
+  (`reduce_cholesterol`) rather than keep both live at once - two independent, un-composed nutrition
+  controls (a 4-way goal *and* a separate cholesterol checkbox) would raise the question of what
+  happens when someone picks "Build muscle" *and* checks the old toggle, with no good answer. One
+  control, four mutually exclusive options, is simpler for the household and for the prompt.
+- **`Goal` type and `households.goal` column** (migration `0005`, default `"lose_weight"` to match
+  the old always-on deficit framing so existing households see no behaviour change until they
+  actively pick something else). **`WeekIntake.goal`** replaces `WeekIntake.lowerCholesterol`,
+  pre-filled from the household default and fully overridable per week - the same pattern already
+  used for `proteins`/`budget`.
+- **Nutrition framing moved from `buildSystemPrompt` into `buildUserPrompt`/`buildSwapMealUserPrompt`.**
+  The old cholesterol framing lived in the household-level system prompt (which only ever takes
+  `household`, not `intake`) because it was a per-household toggle at the time. Goal is a per-week
+  resolved value now, so its framing belongs in the per-week user-prompt builders instead, which
+  already receive `intake`. Each of the 4 goals gets its own `GOAL_FRAMING` string:
+  - `lose_weight` / `build_muscle`: explicitly **never state a specific weight-loss rate, target
+    calorie number, weight target, timeline, or training programme** - a second nutritionist-review
+    recommendation, since this app has no way to know an individual's actual calorie needs and
+    stating a number would misrepresent general guidance as personalised advice.
+  - `balanced`: no deficit/surplus/calorie framing at all, just whole-food variety.
+  - `reduce_cholesterol`: unchanged from the old toggle's ingredient-level guidance (oats, oily fish,
+    nuts, legumes, olive oil, low-fat dairy, lean/trimmed meat, skinless poultry).
+- **Goal never applies to the kids track or to family-occasion meals** - both always use the
+  `balanced` framing regardless of the week's selected goal, since kids eat family-occasion meals too
+  and a deficit/surplus/cholesterol focus aimed at adults has no place there. This was true of the old
+  cholesterol toggle as well; carried forward unchanged.
+- **Disclaimer copy broadened to cover all 4 goals, not just the two the nutritionist flagged.** The
+  nutritionist reviews (both the original cholesterol-toggle review and this goals review) raised
+  disclaimer concerns specifically about `lose_weight`/`build_muscle`'s deficit/surplus language and
+  about `reduce_cholesterol`'s health-adjacent framing. Rather than showing different disclaimer text
+  per goal, one disclaimer line ("General everyday guidance, not individualised advice - talk to a
+  healthcare professional for anything specific to you.") is shown under the selector for all 4
+  options - simpler to maintain and avoids implying `balanced` is somehow exempt from the same
+  "this is not personalised advice" caveat.
+- **UI: two stacked 2-item `TabStrip` rows, not a 4-item single row.** The shared `TabStrip` component
+  is also used for Days needed, family occasion pickers, and Effort level, all of which assume a
+  narrow (2-3) segment count and were mobile-pressure-tested at that width (see MVP 1.3's UX/interaction
+  finding). Extending `TabStrip` itself to gracefully handle 4 segments on a 375px screen without
+  re-testing every other caller risked a layout regression elsewhere for a single new caller's
+  benefit. Two 2-item rows, both bound to the same state value/setter, form a visual 2x2 grid while
+  each row internally stays inside `TabStrip`'s already-verified layout envelope. Shown in both
+  `IntakeForm` (per-week, defaults from the household) and `SettingsForm` (household default, still
+  fully overridable per week) - verified end-to-end via Playwright against the mocked dev server:
+  saving a household default in Settings persists and is picked up as the Intake form's default on
+  the next visit, and submitting a week with a non-default goal selected reaches `/api/generate`
+  successfully.

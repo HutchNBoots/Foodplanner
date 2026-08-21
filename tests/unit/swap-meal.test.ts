@@ -29,7 +29,7 @@ const sampleIntake = {
   budget: "",
   effort: "mixed" as const,
   notes: "",
-  lowerCholesterol: false,
+  goal: "lose_weight" as const,
 };
 
 describe("swap this meal (mocked)", () => {
