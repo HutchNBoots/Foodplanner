@@ -1100,3 +1100,36 @@ backlog item" entry above) that produced 5 concrete recommendations. All 5 are r
   saving a household default in Settings persists and is picked up as the Intake form's default on
   the next visit, and submitting a week with a non-default goal selected reaches `/api/generate`
   successfully.
+
+### Deliberately not built: multi-household support, push notifications
+
+`REQUIREMENTS.md`'s remaining two backlog items - the only two left unbuilt after this execution
+pass. Both are left ⬜ on purpose, not skipped by oversight: each needs a decision this session
+shouldn't make unilaterally under a "don't need me involved" mandate, because each decision would be
+expensive or awkward to reverse later and materially changes what gets built.
+
+- **Multi-household / multi-user support.** Every other backlog item this pass (Swap this meal,
+  Freezer inventory, Goals selector, the kids prompt-tuning pass) is additive: new columns, new
+  routes, new UI sections, none of it touching how a household is identified or authenticated. This
+  one isn't - `getOrCreateHousehold()` (`src/lib/db/queries.ts`) is single-row-by-design (§3 of
+  `PROJECT.md`, "v1 is single-household"), and the entire app - auth (`APP_PASSWORD`, one shared
+  password, no per-user accounts), every query, every API route - assumes exactly one household
+  exists. Building this for real means picking an auth model (per-user accounts? invite links? still
+  a single shared household, or genuinely multi-tenant?) and a data-model shape (household membership
+  table? row-level scoping on every existing query?) before a single line of feature code, and picking
+  wrong is the kind of thing that's painful to unwind once real data exists under the old shape.
+  That's a product/architecture decision for whoever owns this app to make explicitly, not something
+  to guess at while executing a backlog autonomously.
+- **Push notifications / reminders** (e.g. "start Monday's batch cook"). Unlike the app's existing
+  surface (Next.js pages/API routes with no background jobs or third-party services), this requires
+  picking and standing up delivery infrastructure the app doesn't have any of today: web push
+  (needs a service worker, VAPID keys, browser permission UX), email (needs a transactional-email
+  provider and a from-address), or SMS (needs a provider like Twilio and ongoing per-message cost).
+  Each has a real ongoing cost and operational surface (deliverability, unsubscribes, a provider
+  account with its own credentials) that outlasts this one PR - an infrastructure choice for the
+  operator to make, not a default this session should pick on its own.
+
+Both stay as ⬜ backlog items rather than being removed - they're still real, still wanted, just
+blocked on a decision outside this session's scope. Revisit either by asking the operator to pick a
+direction first (auth model for the first, delivery channel for the second), then treat it as its own
+scoped feature the same way Goals/Swap/Freezer were.
