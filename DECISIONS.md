@@ -865,3 +865,80 @@ underlying "heart-healthy this week" request.
 - Same required-field ripple as the cholesterol toggle, smaller this time (`cholesterolLowering` was
   already threaded through every fixture) - `mock.ts` and two `tests/unit/*.test.ts` ingredient
   literals needed `lowSaturatedFat` added.
+
+## Multi-agent app review (UX, CX, end-user, nutritionist)
+
+Four independent subagent reviews of the live app (UX, CX, an end-user roleplay, and a nutrition-
+science review), run against a shared mocked-generation dev server so each could actually drive the
+app rather than review from code alone. Full findings reported to the operator directly, not
+duplicated here in full - this entry is the pointer for future sessions. Cross-cutting findings three
+reviewers converged on independently: the ♥/low-saturated-fat badges rely on `title`/`aria-label`
+tooltips, which don't fire on touch (no hover on iOS Safari, unreliable on Android) - effectively
+unreadable on the mobile-first surface this app targets; History can't distinguish same-day weeks
+(no meal-title preview, no feedback recap); the shopping-list quantity formatting has a real bug
+(`"6+6+6"` instead of a summed total, `"32 tbsp"` pesto instead of a sensible unit); a new household
+gets no onboarding nudge toward Settings before its first "Plan a new week." One regression the UX
+pass caught: `FeedbackControls.tsx`'s rating pills are still ~36px tall, under the 44px floor MVP 1.3
+established everywhere else - missed during that pass, not a deliberate exception. None of these were
+fixed as part of this entry - this is the review, not the fix; see the operator's own prioritisation
+for what gets picked up next.
+
+The nutritionist pass separately flagged, as the most safety-relevant findings: the
+`cholesterolLowering`/`lowSaturatedFat` flags are unverified LLM self-reports with no clinical
+cross-check and no disclaimer anywhere that this isn't medical advice; family-occasion meals are
+cooked once to the adult calorie-deficit framing and kids eat the identical dish (the nutrition
+*summary* already excludes kids from its totals, but that doesn't change what's actually served);
+sodium isn't tracked at all despite the heart-health framing.
+
+## Backlog item: household/per-week "Goals" selector (Lose weight / Build muscle / Balanced / Reduce cholesterol) - not built, nutritionist-reviewed first
+
+Operator-proposed feature, explicitly requested as a backlog item rather than built now, and
+explicitly requested to get a nutritionist's review of the goal set before it was written up - see
+`REQUIREMENTS.md`'s Backlog section for the short version. Full nutritionist recommendations below,
+to build from directly whenever this is picked up:
+
+1. **Single-select, not independently combinable** - "Lose weight" + "Build muscle" is nutritionally
+   contradictory as a silent default; recomposition is a real but individualized goal an AI planner
+   shouldn't attempt unprompted. Recommendation: fold "Reduce cholesterol" into the same four-way
+   single-select rather than keeping today's `lowerCholesterol` toggle orthogonal - the ingredient
+   bias it already does (lean protein, fibre, unsaturated fat) overlaps almost completely with what
+   a sensible "Lose weight" default would already favour, so stacking mostly adds UI complexity for
+   little practical difference. (Documented alternative if independence is wanted later: single-select
+   the calorie/protein framing, keep "Reduce cholesterol" as a second orthogonal boolean layering its
+   existing ingredient-bias logic on top - the codebase already half-supports this, since the badge
+   logic doesn't depend on the deficit language at all.)
+2. **The hardcoded deficit framing has to become goal-conditional, not a fixed default with
+   overrides bolted on** - this is a real reversal of the original v1 "Adult-track nutrition goals"
+   decision (§3), worth its own DECISIONS.md entry when actually built, not just an additive feature.
+   `buildSystemPrompt`'s single hardcoded nutrition bullet becomes a lookup keyed on the selected
+   goal: Lose weight keeps today's line near-unchanged (moderate deficit, high protein, high fibre,
+   minimal ultra-processed); Build muscle explicitly drops the deficit (maintenance-or-slight-surplus,
+   protein pushed higher, ~35-45g/adult main meal); Balanced drops deficit/surplus language entirely
+   (adequate, varied, moderate portions) and needs its own wording distinct from the kids track's
+   near-identical framing, not to read as "same as kids' food"; Reduce cholesterol (if kept as a
+   fourth option per point 1) keeps today's ingredient-bias language with a neutral calorie framing,
+   since the clinical target is LDL/saturated fat, not weight.
+3. **"Lose weight" safety scope**: with no weight/height/age/sex/activity data collected, the only
+   responsible implementation is one fixed, conservative deficit (close to what's already shipped),
+   with an explicit model instruction to never suggest a specific weight-loss rate, target, or
+   timeline. No UI path should ever let a household type a target weight or a numeric calorie floor -
+   that starts to look like individualized medical/dietary prescription from a system with no
+   clinical inputs to validate it. Ship a one-time, dismissible disclaimer when "Lose weight" or
+   "Build muscle" is first selected ("general healthy-eating guidance, not personalized medical or
+   dietetic advice") - also the natural place to finally add the disclaimer the nutritionist review
+   flagged as missing for the existing cholesterol/sat-fat badges.
+4. **Household Settings default, overridable per week** - not per-week-only like the cholesterol
+   toggle (a nutrition goal is a longer-lived household characteristic, not a weekly whim) and not
+   household-only either. Concretely: a `goal` column on `households` (parallel to `store`,
+   `budgetDefault`), plus an optional per-week `goalOverride` in the intake that wins when set, same
+   override pattern `notes` already uses.
+5. **Kids must never inherit an adult's selected goal** - the kids track's existing
+   "balanced, age-appropriate, no numeric targets" framing stays hardcoded and goal-independent,
+   regardless of what the household's adults pick. **Family-occasion meals are the harder case**
+   (already flagged by the earlier nutritionist review, independent of this feature): they're cooked
+   once for adults and kids together, so a household on "Lose weight" or "Build muscle" would
+   otherwise generate the shared family meal under an adult framing kids also eat. Recommended fix
+   when this is built: family-occasion meals always use the "Balanced" framing regardless of the
+   household's selected goal - occasions are already a separate track in the prompt, so this is a
+   small conditional, not a structural change, and it closes a gap that predates this feature rather
+   than introducing a new one.
