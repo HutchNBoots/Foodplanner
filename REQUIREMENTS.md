@@ -498,12 +498,35 @@ Per `PROJECT.md` §9, listed but explicitly deferred — pick up if/when priorit
      a little of the original session's per-click verification safety margin for speed, on the basis
      that the household reviews the whole basket before paying anyway. Confirmation for `[CHECK]` items
      happens inside the Claude session itself, not pre-filtered by the app.
-  3. ⬜ **A paste-back reconciliation box** on the shopping list page - the household pastes Claude's
-     summary in, the app parses the `BOUGHT`/`SKIPPED` lines by reference number (exact match, not
-     fuzzy), ticks the matching `shoppingItems.checked` (already exists, no new field) for `BOUGHT`
-     items, and shows a tally (e.g. "18 bought, 4 skipped") - just an item count, not a cost total (no
-     price data exists anywhere in the app today, and getting it would need Claude Plugin to report
-     prices back, which wasn't asked for).
+  3. ⬜ **A paste-back reconciliation box** on the shopping list page, revised and expanded in a
+     second requirements pass (see DECISIONS.md's "Paste-back reconciliation: category summary +
+     spend" entry) into a category-grouped spend summary rather than a flat tally. Not yet built.
+     - **New category taxonomy** (`src/lib/shopping/categories.ts`, new file, distinct from `aisle`) -
+       `pantryStaple` items take priority and land in **Staples** regardless of aisle; everything else
+       maps from `aisle` text via a keyword heuristic, same defensive-fallback pattern as elsewhere in
+       this app: **Protein**, **Veg & Fruit**, **Dairy** (incl. eggs/chilled), **Bakery**, **Frozen**,
+       **Store Cupboard** (tins/pasta/rice/dry goods - real weekly-shop items, deliberately distinct
+       from Staples), **Staples**, **Other** (catch-all fallback for anything unmatched).
+     - **The exported prompt's requested summary format extends to include price**:
+       `BOUGHT [N] £X.XX` (Claude's honest best-effort read of the price it saw on the product page,
+       not guaranteed penny-accurate - same "reported, not verified" spirit as the app's other
+       Claude-supplied fields) alongside the existing `SKIPPED [N] - reason`.
+     - **Paste-back UI**: a textarea + "Process" button, parses `[N]` back to the same deterministic
+       item ordering already used at export time (`groupedByAisle` in `exportText.ts`), then renders a
+       **category-grouped summary with a spend total per category and the items listed underneath**
+       for reconciliation, e.g.:
+       ```
+       Protein — £14.50
+         ✓ chicken breast fillets - 700g - £4.50
+         ✓ salmon fillet - 2 fillets - £6.00
+
+       Staples — skipped, not counted
+         ⊘ honey - 1 tsp (already had it)
+       ```
+     - **Open detail, not yet decided**: whether the reported price gets persisted (a new
+       `shoppingItems.pricePaid` column, survives reload, same pattern as `checked`) or is only shown
+       for that session and discarded - a real schema-touching decision to make when this is actually
+       built, not blocking the write-up.
 - ⬜ **"My Recipes" epic** — flagged by the operator, logged for the next iteration, not yet reviewed
   or scoped in detail (unlike the item above, this hasn't been through a requirements pass with the
   operator yet - a placeholder marker, not a spec). The rough shape: a personal collection of recipes

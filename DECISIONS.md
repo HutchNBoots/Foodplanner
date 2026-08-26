@@ -1484,3 +1484,44 @@ real feedback that arrived mid-build:
   `shoppingItems.checked` from Claude's `BOUGHT [N]`/`SKIPPED [N]` summary and show a tally. The
   export already emits the exact format that box will need to parse, but the box itself, its parser,
   and the tally UI don't exist yet.
+
+## Paste-back reconciliation: category summary + spend
+
+Operator ask, a second requirements pass on part 3 specifically (still not built - this is another
+spec revision, same "review before build" pattern as the rest of this feature): *"we should give a
+shopping summary by category e.g. protein, veg, staples, the total spend for each category and then
+the items under each for reconciliation."* This reverses the earlier explicit "just an item count, not
+a cost total... wasn't asked for" call from the original three-part spec - it's being asked for now, so
+that call is being revisited rather than defended.
+
+**Two decisions made with the operator** (`AskUserQuestion`) before writing the revised spec:
+
+1. **Category source**: a new small fixed taxonomy purpose-built for this summary, not a reuse of the
+   `aisle` field. `aisle` is free text Claude generates at generation time (not a controlled
+   vocabulary - no fixed enum anywhere, unlike e.g. `PROTEIN_TYPES`), so its exact wording/granularity
+   varies week to week ("Meat & fish" vs. "Fresh meat" vs. "Poultry" are all plausible for the same
+   underlying category), and it doesn't match the "protein"/"veg" language the operator actually wants
+   in a reconciliation summary anyway. Chose a fixed 8-category list instead (Protein, Veg & Fruit,
+   Dairy, Bakery, Frozen, Store Cupboard, Staples, Other), mapped via a keyword heuristic on `aisle`
+   text - same "static heuristic, favour reasonable-not-perfect, documented as an accepted
+   approximation" pattern already established by `pantryStaples.ts`. `pantryStaple` items take
+   priority into **Staples** regardless of what their `aisle` says (a jar of honey being nominally
+   "Store cupboard" aisle doesn't make it useful to lump in with real store-cupboard weekly-shop items
+   like tinned tomatoes or pasta) - which is also why **Store Cupboard** exists as a category distinct
+   from **Staples**: the former is real dry-goods shopping, the latter is specifically the
+   probably-already-have-some flag from the rest of this feature.
+2. **Price data source**: Claude reports a price per item in its paste-back summary
+   (`BOUGHT [N] £X.XX`, extending the existing format) rather than holding off on spend totals until a
+   real pricing data source exists. Same "honest, best-effort, not verified" framing already used for
+   the app's other Claude-self-reported fields (the nutrition flags, `cholesterolLowering`/
+   `lowSaturatedFat`) - Claude is reading a price off whatever it saw on the product page while
+   shopping, not calling a priced API, so it's an honest report, not a guaranteed-accurate one.
+
+**Left open rather than decided**: whether the reported price gets persisted (`shoppingItems
+.pricePaid`, a real new schema column, same durability pattern as `checked`) or only exists for that
+one reconciliation session's UI state and is discarded afterward. This is a genuine build-time decision
+- worth resolving when the paste-back box actually gets built, not now, since nothing about the rest of
+the spec depends on which way it goes.
+
+**Still not built** - this and the original three-part entry are both spec-only. Nothing about
+`categories.ts`, the extended prompt format, or the paste-back UI exists in code yet.
