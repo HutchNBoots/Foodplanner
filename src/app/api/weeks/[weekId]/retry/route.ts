@@ -1,5 +1,5 @@
 import { NextResponse, after } from "next/server";
-import { getOrCreateHousehold, getWeekById, resetWeekForRetry } from "@/lib/db/queries";
+import { getCurrentHousehold, getWeekById, resetWeekForRetry } from "@/lib/db/queries";
 import { runWeekGeneration } from "@/lib/weeks/generateAndPersist";
 
 // Same generation call as /api/generate runs here via after() - needs the
@@ -21,7 +21,7 @@ export async function POST(_request: Request, { params }: { params: Promise<{ we
     return NextResponse.json({ error: "Only a failed week can be retried." }, { status: 409 });
   }
 
-  const household = await getOrCreateHousehold();
+  const household = await getCurrentHousehold();
   await resetWeekForRetry(weekId);
 
   after(() =>

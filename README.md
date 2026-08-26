@@ -10,7 +10,7 @@ See **[`PROJECT.md`](./PROJECT.md)** for the full product spec/vision, and **[`D
 - **Vercel Postgres** (Neon-backed) in production, via Drizzle ORM (`drizzle-orm/neon-http`, `@neondatabase/serverless`). Local dev/tests run against an embedded **PGlite** instance instead - zero setup, no Docker, no account needed.
 - **Claude API** (`@anthropic-ai/sdk`) for weekly plan generation, called server-side via a forced tool-use call, validated with Zod.
 - **Unsplash API** for recipe photos, with a local SVG-illustration fallback when no key is configured.
-- Single shared-password auth gate (`APP_PASSWORD`) - this is a one-household personal app, not multi-user.
+- Multi-household accounts via a sign-up journey (see `DECISIONS.md`'s "Sign-up journey" entry) - each household gets an auto-generated username (`family1`, `family2`, ...) and its own password, no email involved. `APP_PASSWORD` is now the *sign-up invite code*, not a login password itself.
 
 ## Local development
 
@@ -20,7 +20,7 @@ cp .env.example .env   # fill in APP_PASSWORD at minimum; see below
 npm run dev
 ```
 
-Open http://localhost:3000 and log in with whatever you set `APP_PASSWORD` to.
+Open http://localhost:3000, click **Create a household**, and use `APP_PASSWORD` as the invite code to sign up (you'll pick your own password there).
 
 No `DATABASE_URL` is needed locally - the DB client falls back to an embedded PGlite database at `./local-pgdata/` automatically (see `src/lib/db/client.ts`). Run migrations against it once before first use:
 

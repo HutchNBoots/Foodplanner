@@ -26,7 +26,7 @@ In **Settings → Environment Variables** (Production, and Preview too if you wa
 
 | Variable | Value |
 | --- | --- |
-| `APP_PASSWORD` | Whatever household password you want to log in with |
+| `APP_PASSWORD` | The sign-up invite code (see "Accounts" below) - not a login password itself since the sign-up journey |
 | `AUTH_SECRET` | A long random string (e.g. `openssl rand -hex 32`) - signs the login session cookie |
 | `ANTHROPIC_API_KEY` | Your Anthropic API key |
 | `ANTHROPIC_MODEL` | Optional - leave unset to use the code's current default |
@@ -42,17 +42,34 @@ The placeholder deploy from step 1 ran before any of the env vars in step 3 (or 
 
 ## 5. Verify it worked
 
-1. Open the deployed URL on your phone or laptop, confirm the login screen appears, and log in with `APP_PASSWORD`.
-2. Go to **Settings** and confirm you can see/edit the default household (2 adults, 2 kids, Sunday sit-down lunch) - this row is auto-created on first visit.
+1. Open the deployed URL on your phone or laptop, confirm the login screen appears, click **Create a household**, enter `APP_PASSWORD` as the invite code, and pick a password - you'll be assigned a username (`family1`, `family2`, ...) and walked through a short onboarding wizard.
+2. Go to **Settings** and confirm your household details saved correctly, and that your username is shown there.
 3. Go to **Plan a new week**, fill in the intake form, and submit. This is the one step that needs your real `ANTHROPIC_API_KEY` to actually work end-to-end (locally/in CI this is mocked - see `README.md`) - expect the first real generation call to take up to a minute or so; the page shows a loading state and polls until it's ready.
 4. Confirm recipes show photos (real Unsplash ones if you set that key, illustrated placeholders otherwise), and that the **Shopping list** tab shows an aisle-grouped, copyable list.
 5. Leave feedback on a meal (e.g. "Loved it") and confirm it saves - this is what future weeks' generations read back.
 
 If generation fails, the error message shown in the UI is the same one logged server-side (Vercel's function logs) - most likely cause is a missing/invalid `ANTHROPIC_API_KEY`. If the app loads but every page errors, check the step 4 deployment's build logs for the `Migrations complete.` line - if it's missing or errored, the build didn't reach the database (usually a `DATABASE_URL` that's missing or pointing somewhere unreachable).
 
-## Rotating the household password
+## Accounts (sign-up journey)
 
-Change `APP_PASSWORD` in Vercel's env vars and redeploy (or just wait for the next deploy) - existing login sessions stay valid until their cookie expires (30 days) since the signing secret is `AUTH_SECRET`, not the password itself; to force everyone to re-log-in immediately, rotate `AUTH_SECRET` too.
+Each household is its own account: an auto-generated username (`family1`, `family2`, ...) plus a
+password they choose at `/signup` - no email involved, see `DECISIONS.md`'s "Sign-up journey" entry.
+Creating a *new* account requires the shared `APP_PASSWORD` as an invite code, so signups stay limited
+to people you've actually given the code to (each generated week costs real Claude API money). Once an
+account exists, its own password is what it logs in with going forward - `APP_PASSWORD` is never
+needed again for that household. There's no password-reset flow yet (deliberately deferred - needs an
+email-sending provider); if a tester forgets their password, you'd need to reset it directly in the
+database (`households.password_hash` - set to `null` to fall back to the transparent-upgrade path
+below, or hash a new one the same way `src/lib/auth/password.ts` does).
+
+**Rotating the invite code**: change `APP_PASSWORD` in Vercel's env vars and redeploy - this only
+affects *new* sign-ups, not any already-created account's login.
+
+**The pre-existing single-household deploy** (if you were running this app before the sign-up journey
+shipped) keeps working automatically: the migration backfills it with username `family1` and no
+password, and its first successful login with the (old) shared `APP_PASSWORD` transparently upgrades
+it into a real account with that as its password - no manual migration step needed. Log in with
+username `family1` and whatever `APP_PASSWORD` already was.
 
 ## If Unsplash rate-limits or you remove the key later
 

@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { getOrCreateHousehold, updateHousehold } from "@/lib/db/queries";
+import { getCurrentHousehold, updateHousehold } from "@/lib/db/queries";
 import { ENERGY_DIRECTIONS, NUTRITION_FOCUSES } from "@/lib/intake";
 
 const householdSchema = z.object({
@@ -28,7 +28,7 @@ export async function PATCH(request: Request) {
     return NextResponse.json({ error: parsed.error.message }, { status: 400 });
   }
 
-  const household = await getOrCreateHousehold();
+  const household = await getCurrentHousehold();
   const updated = await updateHousehold(household.id, {
     ...parsed.data,
     budgetDefault: parsed.data.budgetDefault ?? null,

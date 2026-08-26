@@ -16,6 +16,19 @@ const createdAt = () =>
  * and is the natural extension point for multi-household support (§9). */
 export const households = pgTable("households", {
   id: id(),
+  /** Auto-generated login handle (sign-up journey, see DECISIONS.md's
+   * "Sign-up journey" entry) - "family1", "family2", ... assigned at
+   * signup, not chosen by the household, since there's no email address to
+   * verify uniqueness/ownership against. Unique, never reused. Separate
+   * from `name` below, which stays a free-text display name the household
+   * picks for itself in onboarding. */
+  username: text("username").notNull().default("family1").unique(),
+  /** Null for a household that predates the sign-up journey (migrated with
+   * a placeholder `username` and no password) or a test-created household
+   * via `getOrCreateHousehold` - see `resolveLogin`'s transparent-upgrade
+   * path in `src/lib/auth/login.ts`. Every household created through
+   * `/signup` gets one immediately. PBKDF2 hash, see `src/lib/auth/password.ts`. */
+  passwordHash: text("password_hash"),
   name: text("name").notNull().default("Our household"),
   adults: integer("adults").notNull().default(2),
   kidsCount: integer("kids_count").notNull().default(2),

@@ -6,6 +6,8 @@ import { PROTEIN_TYPES } from "@/lib/intake";
 function baseHousehold(): typeof households.$inferSelect {
   return {
     id: "h1",
+    username: "family1",
+    passwordHash: null,
     name: "Test household",
     adults: 2,
     kidsCount: 2,

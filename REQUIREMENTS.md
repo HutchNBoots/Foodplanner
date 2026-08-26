@@ -416,8 +416,15 @@ does each track need this week":
 
 Per `PROJECT.md` §9, listed but explicitly deferred — pick up if/when prioritised:
 
-- ⬜ Multi-household / multi-user support — deliberately not built, see `DECISIONS.md`'s
-  "Deliberately not built" entry (a fundamental auth/data-model pivot, not a scoped feature).
+- ✅ Multi-household support — originally deliberately deferred (see `DECISIONS.md`'s "Deliberately not
+  built" entry: a fundamental auth/data-model pivot needing an explicit operator decision, not
+  something to guess at autonomously) until the operator explicitly requested it to support road-
+  testing with real households. Shipped as a sign-up journey: `/signup` (invite-code-gated, reuses
+  `APP_PASSWORD`) → an auto-generated username (`family1`, `family2`, ...) and a chosen password →
+  `/onboarding` (household name, kids count, supermarket, budget) → `/welcome` → the app. One account
+  per household (no shared/multi-member households in v1). See `DECISIONS.md`'s "Sign-up journey"
+  entry for the full data-model/session/migration design and the pre-existing single household's
+  transparent-upgrade path.
 - ⬜ Push notifications / reminders (e.g. "start Monday's batch cook") — deliberately not built, see
   `DECISIONS.md`'s "Deliberately not built" entry (needs an operator infrastructure decision - web
   push vs. email vs. SMS - this session couldn't make alone).

@@ -1,16 +1,40 @@
 import { expect, test } from "@playwright/test";
 
-const PASSWORD = "e2e-test-password";
+// APP_PASSWORD doubles as the sign-up invite code (see DECISIONS.md's
+// "Sign-up journey" entry) - test:e2e:server sets both APP_PASSWORD and
+// AUTH_SECRET to this same value.
+const INVITE_CODE = "e2e-test-password";
+const ACCOUNT_PASSWORD = "e2e-account-password";
 
-test("full flow: login -> intake -> generate (mocked) -> recipes -> shopping list -> feedback", async ({
+test("full flow: signup -> onboarding -> welcome -> intake -> generate (mocked) -> recipes -> shopping list -> feedback", async ({
   page,
 }) => {
   // Unauthenticated requests get redirected to /login by the auth gate.
   await page.goto("/");
   await expect(page).toHaveURL(/\/login/);
 
-  await page.getByLabel("Password").fill(PASSWORD);
-  await page.getByRole("button", { name: "Log in" }).click();
+  // Sign up rather than log in - a fresh e2e run has no household/account
+  // yet, so this also exercises the sign-up journey end to end.
+  await page.getByRole("link", { name: "Create a household" }).click();
+  await expect(page).toHaveURL("/signup");
+  await page.getByLabel("Invite code").fill(INVITE_CODE);
+  await page.getByLabel("Choose a password").fill(ACCOUNT_PASSWORD);
+  await page.getByLabel("Confirm password").fill(ACCOUNT_PASSWORD);
+  await page.getByRole("button", { name: "Create household" }).click();
+
+  // Onboarding wizard - accept the defaults, just confirm it saves and moves on.
+  await expect(page).toHaveURL("/onboarding");
+  await page.getByRole("button", { name: "Continue" }).click();
+
+  // Welcome page - the generated username is shown here (and nowhere else
+  // during sign-up, since there's no email to send it to). Matched by
+  // pattern rather than hardcoding "family1" - which number comes back
+  // depends on how many households already exist in whichever DB this runs
+  // against, not just a truly fresh one.
+  await expect(page).toHaveURL("/welcome");
+  await expect(page.getByText(/^family\d+$/)).toBeVisible();
+  await page.getByRole("link", { name: "Let's go" }).click();
+
   await expect(page).toHaveURL("/");
   await expect(page.getByRole("link", { name: "Plan a new week" })).toBeVisible();
 

@@ -5,7 +5,7 @@ export const config = {
   matcher: ["/((?!_next/static|_next/image|favicon.ico|images/).*)"],
 };
 
-const PUBLIC_PATHS = ["/login", "/api/auth/login"];
+const PUBLIC_PATHS = ["/login", "/api/auth/login", "/signup", "/api/auth/signup"];
 
 export async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
@@ -15,9 +15,9 @@ export async function proxy(request: NextRequest) {
   }
 
   const token = request.cookies.get(SESSION_COOKIE)?.value;
-  const valid = await verifySessionToken(token);
+  const householdId = await verifySessionToken(token);
 
-  if (valid) return NextResponse.next();
+  if (householdId) return NextResponse.next();
 
   if (pathname.startsWith("/api/")) {
     return NextResponse.json({ error: "Not authenticated." }, { status: 401 });

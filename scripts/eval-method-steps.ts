@@ -62,6 +62,8 @@ function hasSensoryCue(text: string): boolean {
 
 const fakeHousehold: Household = {
   id: "eval",
+  username: "family1",
+  passwordHash: null,
   name: "Eval household",
   adults: 2,
   kidsCount: 2,

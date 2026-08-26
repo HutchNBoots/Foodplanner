@@ -1278,3 +1278,95 @@ meal it's always good to do a batch cook each week... to add to the freezer for 
   `ANTHROPIC_API_KEY`, so whether Claude actually follows the strengthened instruction in practice
   can only be confirmed by the operator watching a few real weeks generate, not by an automated test
   here.
+
+## Sign-up journey
+
+Operator ask, to support road-testing with real households: *"perhaps we should add a sign up journey
+- create account -> set household name, number of kids, supermarket and budget -> welcome page."*
+Then, mid-design-discussion: *"rather than request an email address can we generate a user name for
+them - family1, family2 etc?"*
+
+This **supersedes the "Multi-household / multi-user support" half** of the earlier "Deliberately not
+built" entry above - that entry was correct at the time (a fundamental auth/data-model pivot isn't
+something to guess at autonomously), and the operator has now made that call explicitly. The push-
+notifications half of that entry is untouched, still deliberately unbuilt.
+
+**Scope decided with the operator before writing any code** (via `AskUserQuestion`, two open
+questions): password reset is skipped for v1 (no email-sending provider to build it on - same category
+as the deferred push-notifications infrastructure decision; the operator resets a tester's password
+manually if needed); sign-up stays gated behind an invite code rather than being fully open, reusing
+the existing `APP_PASSWORD` rather than a new env var, since every generated week costs real Claude API
+money and this bounds that cost to people actually invited. **One account per household** (no shared/
+multi-member households) - matches the flow the operator described, and keeps the whole pivot much
+smaller: account and household are 1:1, so there's no separate `users` table, no membership/invite-
+another-person model, just two new columns on `households`.
+
+- **`households.username`** (unique, auto-generated `family1`/`family2`/... - see
+  `generateUniqueUsername` in `src/lib/db/queries.ts`, read-then-write, not atomic, accepted at
+  road-test scale same reasoning as the freezer-consumption race) and **`households.passwordHash`**
+  (nullable - see below). No email column at all, per the operator's explicit ask: nothing to verify
+  ownership of, nothing to type, and it sidesteps needing any email-sending infrastructure, reinforcing
+  the "skip password reset" call above rather than just deferring it.
+- **Migration `0007`** backfills the pre-existing single household (`v1 is single-household` was true
+  right up until this migration) with `username = 'family1'` and leaves `passwordHash` null - it isn't
+  hashed at migration time since there's no way to run real password hashing from plain migration SQL
+  without depending on a Postgres extension that may not be enabled everywhere (pgcrypto). Instead:
+  **transparent upgrade on first login** (`resolveLogin` in `src/lib/auth/login.ts`) - a household with
+  `passwordHash: null` is checked against the shared `APP_PASSWORD` (now doubling as the invite code)
+  instead; if it matches, that password is hashed and stored as the real `passwordHash` right then, so
+  the row becomes an ordinary account with zero operator action needed. The pre-existing production
+  household keeps working the moment this deploys: log in as `family1` with the same password it
+  already had.
+- **Password hashing**: PBKDF2-HMAC-SHA256 via Web Crypto (`src/lib/auth/password.ts`,
+  100,000 iterations, random 16-byte salt per password, `salt.hash` both base64url), not bcrypt/scrypt
+  - no native dependency needed, matching `session.ts`'s existing Web-Crypto-only approach (kept
+  edge-safe even though password hashing itself only ever runs from a Node API route, for
+  consistency).
+- **Session token upgraded to carry identity**: was `expiresAt.signature` (a bare "someone's logged
+  in" flag - `verifySessionToken` returned a boolean); now `householdId.expiresAt.signature`
+  (`verifySessionToken` returns the `householdId` or `null`). `createSessionToken` now requires a
+  `householdId` argument. Still HMAC-signed via Web Crypto, still verifiable from both the Edge
+  middleware (`proxy.ts`) and Node API routes/pages - the edge-compatibility constraint that shaped
+  the original single-password design didn't change, only what the token carries.
+- **`getSessionHouseholdId()`** (new, `session.ts`) is the one Node-only export in an otherwise
+  Edge-safe file - it dynamically `import()`s `next/headers`' `cookies()` (Node/RSC-only, not
+  available on the Edge runtime) rather than a static top-level import, so `proxy.ts` (which only
+  needs the boolean-ish `verifySessionToken` check, not this helper) doesn't pull `next/headers` into
+  its Edge bundle just by importing the same file.
+- **`getCurrentHousehold()`** (new, `queries.ts`) replaces `getOrCreateHousehold()` at all 8 places a
+  page/API route needs "the household for this request" (`/`, `/history`, `/plan/new`, `/settings`,
+  `/api/household`, `/api/generate`, `/api/weeks/[weekId]/retry`, plus `/onboarding` and `/welcome`
+  which are new). Resolves via the session instead of "grab the only row" - throws rather than
+  returning null on a missing/invalid session, since `proxy.ts` already redirects unauthenticated
+  requests before any page/route body runs, so reaching here with no valid session means something
+  is genuinely wrong, not a normal case to handle gracefully. The blast radius stayed small because
+  every *other* query already took an explicit `householdId` parameter - the "single household"
+  assumption really did live in exactly one place, as the schema's original comment predicted
+  ("the natural extension point for multi-household support"). `swapMealInPlace`
+  (`generateAndPersist.ts`) resolves the household from `week.householdId` directly instead (via a
+  new `getHouseholdById`) rather than the session, since it isn't itself request-scoped.
+- **`getOrCreateHousehold()` kept, not removed** - purely a test/dev convenience now (7 integration
+  test files call it to get "just give me a household" with no login flow to go through), unreachable
+  from any real user-facing flow post-sign-up, so it causes no harm left in place. A household it
+  creates looks exactly like a migrated legacy row (`passwordHash: null`), which is a well-defined
+  state this design already handles.
+- **Onboarding reuses the existing `/api/household` PATCH route** rather than a new endpoint -
+  `OnboardingForm` is a stripped-down `SettingsForm`-shaped component (full form state seeded from the
+  freshly-created household's schema defaults, but only 4 fields are actually rendered: name, kids
+  count, supermarket, budget) that submits the complete PATCH body the route already expects, carrying
+  every other field through unchanged. No server-side change needed for onboarding at all.
+- **`NavBar` hidden on `/login`, `/signup`, `/onboarding`, `/welcome`** - showing nav links, and
+  especially a "Log out" button, before there's anything to log out of or before setup is even
+  finished, would be confusing.
+- **e2e smoke test rewritten** to sign up (invite code + password) rather than log in with a bare
+  password, since a fresh test DB has no household/account to log into anymore - this also gives the
+  whole sign-up → onboarding → welcome flow real Playwright coverage, not just the parts after it.
+  Asserts the welcome page shows a username matching `/^family\d+$/` rather than hardcoding
+  `"family1"`, since the exact number depends on how many households already exist in whichever DB
+  it runs against.
+- **Manually verified against the mocked dev server** (Playwright, not part of the automated suite):
+  the full signup → onboarding → welcome → Settings flow end-to-end with mobile-viewport (375px)
+  screenshots; and separately, the legacy-household transparent-upgrade path specifically - seeded a
+  `passwordHash: null` household, confirmed a wrong password still fails, confirmed the correct shared
+  password succeeds and upgrades the row, and confirmed a second login with that same password
+  succeeds via the normal hashed-password path (not the legacy fallback) afterward.

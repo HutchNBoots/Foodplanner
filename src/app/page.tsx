@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { getLatestWeek, getOrCreateHousehold } from "@/lib/db/queries";
+import { getCurrentHousehold, getLatestWeek } from "@/lib/db/queries";
 import { APP_VERSION } from "@/lib/version";
 
 // Always reflects the latest household/week state - must not be statically
@@ -18,7 +18,7 @@ function planSummary(planJson: unknown): string | null {
 }
 
 export default async function HomePage() {
-  const household = await getOrCreateHousehold();
+  const household = await getCurrentHousehold();
   const latestWeek = await getLatestWeek(household.id);
   const summary = latestWeek?.status === "ready" ? planSummary(latestWeek.planJson) : null;
 

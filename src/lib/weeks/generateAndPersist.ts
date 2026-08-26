@@ -5,9 +5,9 @@ import {
   finalizeWeek,
   findFreezerItemByName,
   getFreezerInventory,
+  getHouseholdById,
   getMeal,
   getMealsForWeek,
-  getOrCreateHousehold,
   getOtherMealsInWeek,
   getRecentFeedback,
   getRecentMealTitles,
@@ -192,7 +192,10 @@ export async function swapMealInPlace(mealId: string) {
     throw new SwapNotAllowedError("This week isn't ready to swap meals in yet.");
   }
 
-  const household = await getOrCreateHousehold();
+  const household = await getHouseholdById(week.householdId);
+  if (!household) {
+    throw new SwapNotAllowedError("This week's household no longer exists.");
+  }
   const [otherMeals, recentTitles] = await Promise.all([
     getOtherMealsInWeek(week.id, mealId),
     getRecentMealTitles(household.id),
