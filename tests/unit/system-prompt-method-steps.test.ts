@@ -83,3 +83,30 @@ describe("buildSystemPrompt kids-track variety and instructiveness", () => {
     expect(prompt).toContain("not a shorthand version");
   });
 });
+
+// Operator ask: kids meals should always include a weekly batch-cook that
+// stocks the freezer for future weeks (see DECISIONS.md's "Kids weekly
+// batch-cook-to-freezer" entry) - strengthens the prior "skew toward
+// batch-cook-and-freeze" encouragement into a standing requirement whenever
+// the kids track is active. Reuses the existing batchCook.freezerPortions /
+// freezer_inventory machinery from the freezer-inventory backlog feature,
+// no schema change needed.
+describe("buildSystemPrompt kids weekly batch-freeze requirement", () => {
+  it("requires at least one kids batch-freeze meal per active kids week", () => {
+    const prompt = buildSystemPrompt(baseHousehold());
+    expect(prompt).toContain(
+      "at least one kids meal must be a batch-cook that also freezes portions for a future week",
+    );
+  });
+
+  it("frames it as a standing rotating stash, not a one-off or only-when-empty behaviour", () => {
+    const prompt = buildSystemPrompt(baseHousehold());
+    expect(prompt).toContain("not a one-off");
+    expect(prompt).toContain("not just when the freezer happens to be empty");
+  });
+
+  it("clarifies freezerPortions doesn't count toward the same-week leftover cap", () => {
+    const prompt = buildSystemPrompt(baseHousehold());
+    expect(prompt).toContain("does not count toward the weekly leftover cap");
+  });
+});
