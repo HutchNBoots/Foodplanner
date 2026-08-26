@@ -285,6 +285,7 @@ Weekly intake form (days needed, Sunday mode, dish styles, **protein select/unse
 - **Protein select/unselect** in the intake form - defaults to the household's favorite proteins (MVP 2.1, editable in Settings), deselect/reselect any protein to override just for that week.
 - **Meals-needed toggles (MVP 2.1)** - per-week Breakfast/Lunch/Dinner toggles for the Parents and Kids tracks independently; adults can opt into a breakfast, and the kids track can be skipped entirely for the week.
 - **Version number** (`src/lib/version.ts`, `APP_VERSION`) shown on login + home pages. **Manually bumped by one on every deploy-bound change** - if you're continuing work in a new session, remember to increment it in any commit that changes behavior, so the operator can visually confirm a deploy picked up new code.
+- **History page: delete a week + formatted per-week summary** - each row now shows days needed, the nutrition goal, notes (truncated), and avoid-repeating, instead of just a bare date; a trash-icon button with a two-tap inline confirm deletes the week and everything derived from it (meals, shopping list, feedback - all cascade via FK). See `DECISIONS.md`'s "History page: delete a week, formatted per-week summary" entry.
 
 ## Open items / things the operator was mid-way through when this session ended
 

@@ -386,4 +386,16 @@ export async function removeFreezerItem(id: string) {
   await db.delete(freezerInventory).where(eq(freezerInventory.id, id));
 }
 
+/** Deletes a week and everything derived from it (History page delete). Only
+ * the `weeks` row needs an explicit delete - `meals`, `shopping_items`, and
+ * `feedback` all reference `weekId` with `onDelete: "cascade"` (see
+ * schema.ts), so the database removes them automatically in one statement.
+ * `freezer_inventory.frozenFromWeekId` is `onDelete: "set null"` instead -
+ * freezer stock a deleted week batch-froze stays in the household's
+ * inventory, it just loses the (informational-only) link back to which week
+ * froze it. Idempotent: deleting an already-gone week is still a success. */
+export async function deleteWeek(id: string) {
+  await db.delete(weeks).where(eq(weeks.id, id));
+}
+
 export type { Ingredient, LeftoverRef, UsedInRef };
