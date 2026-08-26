@@ -2,6 +2,7 @@ import { meals as mealsTable, type households, type WeekIntake } from "@/lib/db/
 import {
   addFreezerItem,
   consumeFreezerItem,
+  deleteMeal,
   finalizeWeek,
   findFreezerItemByName,
   getFreezerInventory,
@@ -28,6 +29,13 @@ type Household = typeof households.$inferSelect;
  * "this request doesn't make sense" cases caught before any generation is
  * attempted, so the API route can return 409 rather than 500/502. */
 export class SwapNotAllowedError extends Error {}
+
+/** Same "request doesn't make sense" 409 pattern as `SwapNotAllowedError`,
+ * kept as its own class rather than reused - `deleteMealInPlace` never
+ * calls generation at all, so naming it after "swap" would be misleading
+ * even though the failure conditions largely overlap (both reject a
+ * batch-cook source, for the same leftover-stranding reason). */
+export class DeleteNotAllowedError extends Error {}
 
 /** Shared by `/api/generate` (new week) and `/api/weeks/[weekId]/retry` (same
  * week, re-run) - the only difference between those two callers is where the
@@ -243,7 +251,16 @@ export async function swapMealInPlace(mealId: string) {
   // Re-aggregate the whole week's shopping list now that one meal's
   // ingredients changed - same deterministic aggregation a fresh generation
   // uses, just re-run in place for one week (see DECISIONS.md).
-  const allWeekMeals = await getMealsForWeek(week.id);
+  await reaggregateShoppingList(week.id);
+}
+
+/** Shared by `swapMealInPlace` and `deleteMealInPlace` - re-derives the
+ * whole week's shopping list from whatever meals currently exist for it
+ * (same deterministic aggregation a fresh generation uses) and replaces
+ * `shopping_items` with the result. Called after any change to a week's
+ * meals that could affect ingredient totals. */
+async function reaggregateShoppingList(weekId: string) {
+  const allWeekMeals = await getMealsForWeek(weekId);
   const forAggregation: MealForAggregation[] = allWeekMeals.map((m) => ({
     id: m.id,
     title: m.title,
@@ -254,9 +271,9 @@ export async function swapMealInPlace(mealId: string) {
   }));
   const items = aggregateShoppingList(forAggregation);
   await replaceShoppingItemsForWeek(
-    week.id,
+    weekId,
     items.map((item) => ({
-      weekId: week.id,
+      weekId,
       productName: item.productName,
       quantity: item.quantity,
       unit: item.unit,
@@ -265,4 +282,31 @@ export async function swapMealInPlace(mealId: string) {
       usedInJson: item.usedIn,
     })),
   );
+}
+
+/** "Delete this meal" backlog feature (see DECISIONS.md) - removes a single
+ * meal from an already-`ready` week and re-aggregates the shopping list
+ * from whatever's left, without touching any other meal or the week's own
+ * status/planJson. Same batch-cook restriction as `swapMealInPlace`, same
+ * reasoning: a batch-cook source's leftovers are described only on *this*
+ * row, so deleting it would silently strand whatever other days' rows say
+ * about "using this batch." `feedback` rows for the deleted meal cascade
+ * via FK, no separate cleanup needed. */
+export async function deleteMealInPlace(mealId: string) {
+  const meal = await getMeal(mealId);
+  if (!meal) throw new DeleteNotAllowedError("Meal not found.");
+
+  if (meal.batchMakes) {
+    throw new DeleteNotAllowedError(
+      "This meal is a batch-cook that other days rely on as leftovers - deleting it would strand those days. Swap it for something else instead, or regenerate the whole week.",
+    );
+  }
+
+  const week = await getWeekById(meal.weekId);
+  if (!week || week.status !== "ready") {
+    throw new DeleteNotAllowedError("This week isn't ready to delete meals from yet.");
+  }
+
+  await deleteMeal(mealId);
+  await reaggregateShoppingList(week.id);
 }

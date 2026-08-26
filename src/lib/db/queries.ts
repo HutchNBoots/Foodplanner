@@ -301,6 +301,14 @@ export async function getMeal(mealId: string) {
   return meal ?? null;
 }
 
+/** "Delete this meal" backlog feature (see DECISIONS.md) - `feedback` rows
+ * for this meal cascade via FK (`onDelete: "cascade"`), no separate cleanup
+ * needed. Shopping-list re-aggregation happens separately in
+ * `deleteMealInPlace`, since it needs the rest of the week's meals too. */
+export async function deleteMeal(mealId: string) {
+  await db.delete(meals).where(eq(meals.id, mealId));
+}
+
 /** All other meals in the same week as `mealId` - used by "swap this meal"
  * (see DECISIONS.md) to tell the generation prompt what not to duplicate. */
 export async function getOtherMealsInWeek(weekId: string, excludeMealId: string) {
