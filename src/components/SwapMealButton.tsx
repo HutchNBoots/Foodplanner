@@ -28,7 +28,7 @@ export function SwapMealButton({ mealId }: { mealId: string }) {
   }
 
   return (
-    <div className="mt-2">
+    <div className="flex-1">
       <button type="button" className="btn-secondary w-full" onClick={onSwap} disabled={swapping}>
         {swapping ? "Finding a replacement..." : "Swap this meal"}
       </button>

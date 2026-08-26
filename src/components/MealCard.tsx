@@ -4,6 +4,7 @@ import { FeedbackControls } from "./FeedbackControls";
 import { IngredientLine } from "./IngredientLine";
 import { IndexTab } from "./IndexTab";
 import { SwapMealButton } from "./SwapMealButton";
+import { DeleteMealButton } from "./DeleteMealButton";
 import { TRACK_COLOR_CLASSES, TRACK_META } from "@/lib/design/tracks";
 import { trackForMeal } from "@/lib/meals/track";
 
@@ -87,10 +88,16 @@ export function MealCard({ meal, feedbackRating }: { meal: Meal; feedbackRating:
           </ol>
         </details>
 
-        {/* Batch-cook meals aren't offered a swap - other days rely on them
-            as leftovers, and the server would reject it anyway (see
-            DECISIONS.md's "Swap this meal" entry). */}
-        {!meal.batchMakes && <SwapMealButton mealId={meal.id} />}
+        {/* Batch-cook meals aren't offered a swap or delete - other days
+            rely on them as leftovers, and the server would reject either
+            anyway (see DECISIONS.md's "Swap this meal" and "Delete this
+            meal" entries). */}
+        {!meal.batchMakes && (
+          <div className="mt-2 flex gap-2">
+            <SwapMealButton mealId={meal.id} />
+            <DeleteMealButton mealId={meal.id} />
+          </div>
+        )}
 
         <FeedbackControls
           mealId={meal.id}

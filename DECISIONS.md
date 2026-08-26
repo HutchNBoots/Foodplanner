@@ -1571,3 +1571,39 @@ category-grouped, spend-totalled result), and a new "Reconcile after shopping" c
 - Also verified during that same manual pass: a "Copy shopping prompt" → (fabricated) paste-back →
   category summary round trip correctly ticks off the matching checkboxes in the on-screen list above
   the reconciliation section (5 of 6 items checked matching 5 `BOUGHT` + 1 `SKIPPED` lines pasted in).
+
+## Delete this meal
+
+Operator: *"lets add the option to delete a meal from the recipies section (next to the swap it
+option) When this is dome is the shopping list updatted."* Added a "Delete" button next to "Swap this
+meal" on `MealCard.tsx` (both now sit in a shared flex row, `flex-1` each, rather than stacked) - same
+two-tap inline-confirm pattern as `DeleteWeekButton`, not a native `confirm()` dialog.
+
+- **Same batch-cook restriction as "Swap this meal", for the same reason**: a batch-cook source's
+  leftovers (`leftoverForJson`) are described only on *that* meal's own row - other days' rows don't
+  reference it back. Deleting a batch-cook source would silently strand whatever those other days say
+  about "using this batch," so `deleteMealInPlace` rejects it outright (`DeleteNotAllowedError`, mapped
+  to 409, mirroring `SwapNotAllowedError`) rather than trying to keep the rest of the week in sync. The
+  button isn't rendered at all for a batch-cook meal (`MealCard.tsx` already skips both buttons together)
+  since the server would 409 either way.
+- **Shopping-list re-aggregation logic shared with swap**: `swapMealInPlace`'s trailing
+  "re-aggregate the whole week's shopping list" block was extracted into a private `reaggregateShoppingList`
+  helper in `generateAndPersist.ts`, now called by both `swapMealInPlace` and the new
+  `deleteMealInPlace` - same "re-derive the week's shopping list from whatever meals currently exist"
+  approach, just triggered by a removal instead of a content change.
+- **`feedback` rows for the deleted meal need no manual cleanup** - `feedback.mealId` already has
+  `onDelete: "cascade"`, so they're removed automatically by the FK when the meal row goes.
+- **Left as an accepted limitation, not implemented**: a deleted meal with `usesFreezerItem` set does
+  *not* restore the freezer-inventory portions it consumed back onto `freezer_inventory`. Same
+  "documented approximation over exact-but-fragile bookkeeping" call already made for freezer
+  consumption's read-then-write race condition elsewhere in this file - the household discovering a
+  meal was wrong *after* generation and deleting it, having also specifically used a freezer batch, is
+  a narrow enough case that it isn't worth a reconciling write path for now. Worth revisiting if it
+  turns out to matter in practice; the freezer count would just need a manual correction from
+  `/settings` (or the database) in the meantime.
+- New integration test file `tests/unit/delete-meal.test.ts` (PGlite, mocked generation, same shape as
+  `swap-meal.test.ts`) - covers rejecting a batch-cook delete, and a real non-batch delete reducing the
+  aggregated "chicken breast" quantity and dropping the deleted meal from that item's `usedIn`, rather
+  than asserting an ingredient disappears entirely - the mock plan's non-batch adult dinners repeat the
+  same ingredients as each other and as the batch-cook meal, so nothing in this particular test data
+  is actually unique to one meal instance.
