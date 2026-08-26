@@ -1370,3 +1370,56 @@ another-person model, just two new columns on `households`.
   `passwordHash: null` household, confirmed a wrong password still fails, confirmed the correct shared
   password succeeds and upgrades the row, and confirmed a second login with that same password
   succeeds via the normal hashed-password path (not the legacy fallback) afterward.
+
+## Backlog item: pantry-staple-aware Claude-in-Chrome shopping handoff - not built, reviewed first
+
+Prompted by the operator initially asking about a "plugin which books Sainsbury's baskets." That
+reopened the "Explicitly not planned" fully-unattended-checkout item in `REQUIREMENTS.md`, which says
+revisiting it needs an explicit conversation. Had that conversation directly (web search confirmed
+Sainsbury's still has no public consumer basket/ordering API, only unofficial third-party scrapers) -
+the conclusion was that a "plugin" doesn't change the risk calculus versus what's already flagged:
+automating a retailer's site without their authorization is the same concern regardless of whether
+Claude or custom code drives it. The operator then reframed toward what they actually wanted: not new
+automation, but a **better-informed version of the existing supervised handoff** from the "MVP 2 scope
+correction" entry above (paste a list into Claude in Chrome, a human watches the whole session, Claude
+stops before payment on its own). That's a materially different, much smaller risk - no new
+automation surface, no stored credentials, no unattended runs - so it's being treated as an ordinary
+feature request, reviewed and specified with the operator (like the original Goals selector review)
+rather than something needing further deliberation.
+
+**Root cause, reframed**: a real test run had Claude in Chrome buy a whole jar of honey for a recipe
+needing 1 tsp. Buying a whole jar isn't itself wrong - that's the only purchasable unit, you can't buy
+a teaspoon of honey at retail. The actual gap: the shopping list has no concept of "the household
+probably already has some of this," so a pantry staple gets treated identically to a real weekly-shop
+item every time, with no signal anywhere that it might be worth skipping.
+
+**Three design decisions made with the operator** (`AskUserQuestion`, two rounds, before writing the
+full spec into `REQUIREMENTS.md`):
+1. **What "Claude Plugin" concretely is**: confirmed as the existing Claude-in-Chrome copy-paste
+   handoff (per the "MVP 2 scope correction" entry) - not a new API/manifest-level integration. This
+   spec is entirely about the text the app generates for that paste, and a new box to paste Claude's
+   response back into - no new integration surface with Anthropic or Sainsbury's at all.
+2. **Where the "check with me first" confirmation happens**: inside the Claude browsing session
+   itself, not pre-filtered by the app into a separate "you deal with these" list. A human is present
+   for the whole session anyway (per the existing supervised-flow design), so it's simpler for Claude
+   to just ask inline than for the app to split the list and create two separate places to review
+   items.
+3. **What "run a tally" means**: an item count (bought vs. skipped), not a cost total. No price data
+   exists anywhere in the app today (the `budget` field is a free-text generation-steering hint, not a
+   real running total), and getting real prices back would need Claude Plugin to report them - a
+   bigger ask than was actually requested.
+
+**A fourth decision, made while drafting the spec itself** (not asked as a separate question, since
+there was a clearly better answer once the shape was concrete): the paste-back reconciliation needs
+Claude's summary to map back onto specific shopping-list rows reliably. Free-text fuzzy-matching
+("chicken breast" against a stored "chicken breast fillets") is exactly the kind of silent-failure
+risk this project avoids elsewhere (e.g. the ingredient-canonical fuzzy-matcher already has known
+edge cases) - so the export instead tags each line with a short stable reference number Claude is
+instructed to echo back verbatim (`BOUGHT [3]` / `SKIPPED [7]`), turning the paste-back parse into
+exact number-matching instead. Also decided the new `pantryStaple` flag should be singular rather than
+split into a second `smallQuantity` flag - the two would overlap in practice (you rarely need "a
+small quantity" of something that isn't also a staple) and a single flag is simpler to prompt Claude
+for honestly and simpler for the export/UI to render.
+
+**Not built yet** - this entry and the corresponding `REQUIREMENTS.md` backlog item are the
+"reviewed and specified" step, same as the original Goals selector review before it was built.

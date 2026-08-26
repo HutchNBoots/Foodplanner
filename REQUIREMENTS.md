@@ -466,6 +466,39 @@ Per `PROJECT.md` §9, listed but explicitly deferred — pick up if/when priorit
   direction; kids/family-occasion meals always stay "Balanced" with no focuses regardless of
   selections. UI: a single 3-item `TabStrip` for direction, multi-select `Chip`s for focus, in both
   `IntakeForm` and `SettingsForm`, plus a disclaimer line shown under the selector.
+- ⬜ **Pantry-staple-aware Claude-in-Chrome shopping handoff** — reviewed and specified with the
+  operator, not yet built. Prompted by a real test: Claude in Chrome bought a whole jar of honey for a
+  recipe needing 1 tsp. Not itself wrong (a jar is the only purchasable unit), but the shopping list
+  has no concept of "the household probably already has some of this" - every ingredient is treated
+  identically regardless of how likely it is to already be in the cupboard. **Explicitly distinct from
+  the "Explicitly not planned" fully-unattended-checkout item below**: this keeps a human present for
+  the whole session and never touches payment/checkout - it's a better-informed version of the
+  existing supervised "paste a list into Claude in Chrome, watch it shop" flow, not automation of it.
+  See `DECISIONS.md`'s "Pantry-staple-aware Claude-in-Chrome shopping handoff" entry for the three
+  design decisions made with the operator (`AskUserQuestion`, two rounds) this spec is built on.
+  Three parts:
+  1. **`Ingredient.pantryStaple: boolean`** - a new honest, evidence-based flag Claude sets at
+     generation time, same pattern as `cholesterolLowering`/`lowSaturatedFat`. Criteria: a shelf-stable
+     ingredient commonly kept stocked and used a little at a time across many recipes (herbs/spices,
+     oils, vinegars, condiments, stock cubes/paste, baking staples, honey) - about the ingredient
+     itself, not the quantity requested this week.
+  2. **A richer shopping-list export** replacing "Copy as plain text" - builds on the existing flat,
+     one-line-per-item format (`shoppingListAsPlainText`, deliberately not aisle-grouped for this
+     specific handoff - see DECISIONS.md's "Shopping-list plain-text export" entry, unchanged here),
+     adding a short stable reference number per line (e.g. `[3] chicken breast fillets - 500g`) so
+     Claude's later summary can refer back to it exactly rather than fuzzy-matching free text, plus a
+     `[CHECK]` marker on `pantryStaple` items. Wraps the list in explicit instructions: add
+     everything to the Sainsbury's basket, but for `[CHECK]` items pause and ask the household first
+     (may already have it) - the confirmation happens inside the Claude browsing session itself, not
+     pre-filtered by the app, since a human is present there for the whole session anyway. Ends by
+     asking Claude for a summary in a fixed, parseable format (`BOUGHT [3]` / `SKIPPED [7]`, one per
+     line) referencing those same reference numbers.
+  3. **A paste-back reconciliation box** on the shopping list page - the household pastes Claude's
+     summary in, the app parses the `BOUGHT`/`SKIPPED` lines by reference number (exact match, not
+     fuzzy), ticks the matching `shoppingItems.checked` (already exists, no new field) for `BOUGHT`
+     items, and shows a tally (e.g. "18 bought, 4 skipped") - just an item count, not a cost total (no
+     price data exists anywhere in the app today, and getting it would need Claude Plugin to report
+     prices back, which wasn't asked for).
 
 ## Explicitly not planned
 
