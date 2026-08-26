@@ -104,6 +104,14 @@ export function SettingsForm({
     <form onSubmit={onSubmit} className="space-y-6">
       <section className="card space-y-4 p-4">
         <div>
+          <span className="label">Username</span>
+          <p className="data-figure text-lg font-semibold text-ink-800">{household.username}</p>
+          <p className="mt-1 text-xs text-ink-500">
+            What you log in with - not editable here. This is separate from the household name below,
+            which is just a display name.
+          </p>
+        </div>
+        <div>
           <label className="label" htmlFor="name">
             Household name
           </label>

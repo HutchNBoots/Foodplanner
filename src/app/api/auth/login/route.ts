@@ -1,23 +1,23 @@
 import { NextResponse } from "next/server";
-import { constantTimeEquals, createSessionToken, SESSION_COOKIE } from "@/lib/auth/session";
+import { createSessionToken, SESSION_COOKIE } from "@/lib/auth/session";
+import { resolveLogin } from "@/lib/auth/login";
 
 export async function POST(request: Request) {
-  const appPassword = process.env.APP_PASSWORD;
-  if (!appPassword) {
-    return NextResponse.json(
-      { error: "Server is missing the APP_PASSWORD environment variable." },
-      { status: 500 },
-    );
-  }
-
   const body = await request.json().catch(() => null);
+  const username = typeof body?.username === "string" ? body.username.trim() : "";
   const password = typeof body?.password === "string" ? body.password : "";
 
-  if (!constantTimeEquals(password, appPassword)) {
-    return NextResponse.json({ error: "Incorrect password." }, { status: 401 });
+  if (!username || !password) {
+    return NextResponse.json({ error: "Enter your username and password." }, { status: 400 });
   }
 
-  const token = await createSessionToken();
+  const householdId = await resolveLogin(username, password);
+  if (!householdId) {
+    // Deliberately generic - doesn't reveal whether the username exists.
+    return NextResponse.json({ error: "Incorrect username or password." }, { status: 401 });
+  }
+
+  const token = await createSessionToken(householdId);
   const response = NextResponse.json({ ok: true });
   response.cookies.set(SESSION_COOKIE, token, {
     httpOnly: true,

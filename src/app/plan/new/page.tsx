@@ -1,4 +1,4 @@
-import { getOrCreateHousehold, getRecentMealTitles } from "@/lib/db/queries";
+import { getCurrentHousehold, getRecentMealTitles } from "@/lib/db/queries";
 import { PROTEIN_TYPES, upcomingMonday } from "@/lib/intake";
 import { deemphasisedStyles, DISH_STYLES } from "@/lib/season";
 
@@ -6,7 +6,7 @@ export const dynamic = "force-dynamic";
 import { IntakeForm } from "@/components/IntakeForm";
 
 export default async function NewWeekPage() {
-  const household = await getOrCreateHousehold();
+  const household = await getCurrentHousehold();
   const recentTitles = await getRecentMealTitles(household.id, 3);
 
   return (

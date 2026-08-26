@@ -1,4 +1,4 @@
-import { getFreezerInventory, getOrCreateHousehold } from "@/lib/db/queries";
+import { getCurrentHousehold, getFreezerInventory } from "@/lib/db/queries";
 import { PROTEIN_TYPES } from "@/lib/intake";
 import { SettingsForm } from "@/components/SettingsForm";
 import { FreezerInventory } from "@/components/FreezerInventory";
@@ -6,7 +6,7 @@ import { FreezerInventory } from "@/components/FreezerInventory";
 export const dynamic = "force-dynamic";
 
 export default async function SettingsPage() {
-  const household = await getOrCreateHousehold();
+  const household = await getCurrentHousehold();
   const freezerItems = await getFreezerInventory(household.id);
 
   return (

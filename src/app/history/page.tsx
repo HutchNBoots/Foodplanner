@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { getOrCreateHousehold, listWeeks } from "@/lib/db/queries";
+import { getCurrentHousehold, listWeeks } from "@/lib/db/queries";
 import { DeleteWeekButton } from "@/components/DeleteWeekButton";
 import type { WeekIntake } from "@/lib/db/schema";
 
@@ -57,7 +57,7 @@ function goalSummary(intake: WeekIntake): string | null {
 }
 
 export default async function HistoryPage() {
-  const household = await getOrCreateHousehold();
+  const household = await getCurrentHousehold();
   const weeks = await listWeeks(household.id);
 
   return (

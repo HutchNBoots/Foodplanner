@@ -10,12 +10,18 @@ const links = [
   { href: "/settings", label: "Settings", icon: "⚙️" },
 ];
 
+// Hidden on the unauthenticated/pre-setup pages - showing nav links (and a
+// "Log out" button before there's even anything to log out of) mid-signup
+// or mid-onboarding would be confusing (see DECISIONS.md's "Sign-up
+// journey" entry).
+const NAV_HIDDEN_PATHS = ["/login", "/signup", "/onboarding", "/welcome"];
+
 export function NavBar() {
   const pathname = usePathname();
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
 
-  if (pathname === "/login") return null;
+  if (NAV_HIDDEN_PATHS.includes(pathname)) return null;
 
   function logout() {
     startTransition(async () => {

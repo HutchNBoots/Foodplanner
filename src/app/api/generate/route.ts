@@ -1,5 +1,5 @@
 import { NextResponse, after } from "next/server";
-import { createWeek, getOrCreateHousehold } from "@/lib/db/queries";
+import { createWeek, getCurrentHousehold } from "@/lib/db/queries";
 import { weekIntakeSchema } from "@/lib/intake";
 import { runWeekGeneration } from "@/lib/weeks/generateAndPersist";
 
@@ -13,7 +13,7 @@ export async function POST(request: Request) {
   }
   const intake = parsed.data;
 
-  const household = await getOrCreateHousehold();
+  const household = await getCurrentHousehold();
   const week = await createWeek(household.id, intake.weekStartDate, intake);
 
   // The Claude call + per-meal image lookups can comfortably take longer

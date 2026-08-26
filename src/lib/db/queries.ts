@@ -1,4 +1,5 @@
 import { and, desc, eq, inArray, ne } from "drizzle-orm";
+import { getSessionHouseholdId } from "@/lib/auth/session";
 import { db } from "./client";
 import {
   feedback,
@@ -25,14 +26,77 @@ function firstOrThrow<T>(rows: T[]): T {
   return row;
 }
 
-/** v1 is single-household; this fetches that row, creating sensible defaults
- * (§3) on first run so the app works before anyone visits /settings. */
+/** Test/dev convenience only since the sign-up journey (see DECISIONS.md's
+ * "Sign-up journey" entry) - real households are created via
+ * `createHouseholdAccount` at `/signup` now, not auto-vivified on first
+ * visit. Grabs the first household row, creating one with schema defaults
+ * (no real login credentials - `passwordHash` stays null, `username`
+ * defaults to "family1") if none exists yet. Every integration test that
+ * needs "just give me a household" still uses this - it's unreachable from
+ * any real user-facing flow post-sign-up, so it causes no harm left in
+ * place. */
 export async function getOrCreateHousehold() {
   const existing = await db.select().from(households).limit(1);
   if (existing[0]) return existing[0];
 
   const created = await db.insert(households).values({}).returning();
   return firstOrThrow(created);
+}
+
+export async function getHouseholdById(id: string) {
+  const [household] = await db.select().from(households).where(eq(households.id, id));
+  return household ?? null;
+}
+
+export async function getHouseholdByUsername(username: string) {
+  const [household] = await db.select().from(households).where(eq(households.username, username));
+  return household ?? null;
+}
+
+/** Resolves the household for the current request's session (sign-up
+ * journey - see DECISIONS.md). Every page/API route that used to call
+ * `getOrCreateHousehold()` now calls this instead. Throws rather than
+ * returning null on a missing/invalid session or a since-deleted household
+ * - proxy.ts already redirects unauthenticated requests to /login before a
+ * page/route body ever runs, so either of those happening here means
+ * something is genuinely wrong (a forged/stale cookie, or the account was
+ * removed mid-session), not a normal "not logged in" case to handle gracefully. */
+export async function getCurrentHousehold() {
+  const householdId = await getSessionHouseholdId();
+  if (!householdId) throw new Error("No authenticated session.");
+
+  const household = await getHouseholdById(householdId);
+  if (!household) throw new Error("Session's household no longer exists.");
+  return household;
+}
+
+/** "family1", "family2", ... - the next unused number (see DECISIONS.md's
+ * "Sign-up journey" entry for why a generated username rather than an
+ * email). Read-then-write, not atomic - fine at road-test scale (a handful
+ * of manual signups, not concurrent bots); the `username` unique
+ * constraint means a genuine collision surfaces as a clear insert error
+ * rather than silently overwriting anyone. */
+export async function generateUniqueUsername(): Promise<string> {
+  const existing = await db.select({ username: households.username }).from(households);
+  const usedNumbers = existing
+    .map((h) => Number(h.username.match(/^family(\d+)$/)?.[1]))
+    .filter((n) => Number.isFinite(n));
+  const next = usedNumbers.length ? Math.max(...usedNumbers) + 1 : 1;
+  return `family${next}`;
+}
+
+/** Creates a brand-new household account at /signup - everything besides
+ * the login credentials keeps the schema's ordinary defaults, filled in
+ * properly moments later by the onboarding wizard. */
+export async function createHouseholdAccount(credentials: { username: string; passwordHash: string }) {
+  const created = await db.insert(households).values(credentials).returning();
+  return firstOrThrow(created);
+}
+
+/** The transparent-upgrade write for a pre-sign-up-journey household's
+ * first login (see `resolveLogin` in src/lib/auth/login.ts). */
+export async function setHouseholdPassword(id: string, passwordHash: string) {
+  await db.update(households).set({ passwordHash, updatedAt: new Date().toISOString() }).where(eq(households.id, id));
 }
 
 export async function updateHousehold(

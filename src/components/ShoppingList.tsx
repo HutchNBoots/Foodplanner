@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import type { shoppingItems } from "@/lib/db/schema";
-import { shoppingListAsPlainText } from "@/lib/shopping/exportText";
+import { buildChromeHandoffPrompt } from "@/lib/shopping/exportText";
 
 type ShoppingItem = typeof shoppingItems.$inferSelect;
 
@@ -25,7 +25,7 @@ export function ShoppingList({ items: initialItems }: { items: ShoppingItem[] })
   const groups = groupByAisle(items);
 
   async function copy() {
-    await navigator.clipboard.writeText(shoppingListAsPlainText(items));
+    await navigator.clipboard.writeText(buildChromeHandoffPrompt(items));
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
   }
@@ -54,12 +54,12 @@ export function ShoppingList({ items: initialItems }: { items: ShoppingItem[] })
     <div className="space-y-4">
       <div>
         <button type="button" onClick={copy} className="btn-secondary w-full">
-          {copied ? "Copied!" : "Copy as plain text"}
+          {copied ? "Copied!" : "Copy shopping prompt"}
         </button>
         <p className="mt-2 text-xs text-ink-500">
-          Tip: open Claude in Chrome on Sainsbury&apos;s site, paste this list, and ask it to add
-          everything to your basket - it&apos;ll confirm anything consequential and stop before
-          payment, so you review and pay yourself.
+          Tip: open Claude in Chrome on Sainsbury&apos;s site and paste this in. It&apos;ll ask before
+          adding anything you likely already have (honey, spices, oils...), and stops before payment
+          so you review and pay yourself.
         </p>
       </div>
 

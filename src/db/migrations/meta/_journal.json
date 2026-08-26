@@ -50,6 +50,13 @@
       "when": 1787315090762,
       "tag": "0006_goals_two_axis_redesign",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1787747970894,
+      "tag": "0007_household_accounts",
+      "breakpoints": true
     }
   ]
 }

@@ -1278,3 +1278,209 @@ meal it's always good to do a batch cook each week... to add to the freezer for 
   `ANTHROPIC_API_KEY`, so whether Claude actually follows the strengthened instruction in practice
   can only be confirmed by the operator watching a few real weeks generate, not by an automated test
   here.
+
+## Sign-up journey
+
+Operator ask, to support road-testing with real households: *"perhaps we should add a sign up journey
+- create account -> set household name, number of kids, supermarket and budget -> welcome page."*
+Then, mid-design-discussion: *"rather than request an email address can we generate a user name for
+them - family1, family2 etc?"*
+
+This **supersedes the "Multi-household / multi-user support" half** of the earlier "Deliberately not
+built" entry above - that entry was correct at the time (a fundamental auth/data-model pivot isn't
+something to guess at autonomously), and the operator has now made that call explicitly. The push-
+notifications half of that entry is untouched, still deliberately unbuilt.
+
+**Scope decided with the operator before writing any code** (via `AskUserQuestion`, two open
+questions): password reset is skipped for v1 (no email-sending provider to build it on - same category
+as the deferred push-notifications infrastructure decision; the operator resets a tester's password
+manually if needed); sign-up stays gated behind an invite code rather than being fully open, reusing
+the existing `APP_PASSWORD` rather than a new env var, since every generated week costs real Claude API
+money and this bounds that cost to people actually invited. **One account per household** (no shared/
+multi-member households) - matches the flow the operator described, and keeps the whole pivot much
+smaller: account and household are 1:1, so there's no separate `users` table, no membership/invite-
+another-person model, just two new columns on `households`.
+
+- **`households.username`** (unique, auto-generated `family1`/`family2`/... - see
+  `generateUniqueUsername` in `src/lib/db/queries.ts`, read-then-write, not atomic, accepted at
+  road-test scale same reasoning as the freezer-consumption race) and **`households.passwordHash`**
+  (nullable - see below). No email column at all, per the operator's explicit ask: nothing to verify
+  ownership of, nothing to type, and it sidesteps needing any email-sending infrastructure, reinforcing
+  the "skip password reset" call above rather than just deferring it.
+- **Migration `0007`** backfills the pre-existing single household (`v1 is single-household` was true
+  right up until this migration) with `username = 'family1'` and leaves `passwordHash` null - it isn't
+  hashed at migration time since there's no way to run real password hashing from plain migration SQL
+  without depending on a Postgres extension that may not be enabled everywhere (pgcrypto). Instead:
+  **transparent upgrade on first login** (`resolveLogin` in `src/lib/auth/login.ts`) - a household with
+  `passwordHash: null` is checked against the shared `APP_PASSWORD` (now doubling as the invite code)
+  instead; if it matches, that password is hashed and stored as the real `passwordHash` right then, so
+  the row becomes an ordinary account with zero operator action needed. The pre-existing production
+  household keeps working the moment this deploys: log in as `family1` with the same password it
+  already had.
+- **Password hashing**: PBKDF2-HMAC-SHA256 via Web Crypto (`src/lib/auth/password.ts`,
+  100,000 iterations, random 16-byte salt per password, `salt.hash` both base64url), not bcrypt/scrypt
+  - no native dependency needed, matching `session.ts`'s existing Web-Crypto-only approach (kept
+  edge-safe even though password hashing itself only ever runs from a Node API route, for
+  consistency).
+- **Session token upgraded to carry identity**: was `expiresAt.signature` (a bare "someone's logged
+  in" flag - `verifySessionToken` returned a boolean); now `householdId.expiresAt.signature`
+  (`verifySessionToken` returns the `householdId` or `null`). `createSessionToken` now requires a
+  `householdId` argument. Still HMAC-signed via Web Crypto, still verifiable from both the Edge
+  middleware (`proxy.ts`) and Node API routes/pages - the edge-compatibility constraint that shaped
+  the original single-password design didn't change, only what the token carries.
+- **`getSessionHouseholdId()`** (new, `session.ts`) is the one Node-only export in an otherwise
+  Edge-safe file - it dynamically `import()`s `next/headers`' `cookies()` (Node/RSC-only, not
+  available on the Edge runtime) rather than a static top-level import, so `proxy.ts` (which only
+  needs the boolean-ish `verifySessionToken` check, not this helper) doesn't pull `next/headers` into
+  its Edge bundle just by importing the same file.
+- **`getCurrentHousehold()`** (new, `queries.ts`) replaces `getOrCreateHousehold()` at all 8 places a
+  page/API route needs "the household for this request" (`/`, `/history`, `/plan/new`, `/settings`,
+  `/api/household`, `/api/generate`, `/api/weeks/[weekId]/retry`, plus `/onboarding` and `/welcome`
+  which are new). Resolves via the session instead of "grab the only row" - throws rather than
+  returning null on a missing/invalid session, since `proxy.ts` already redirects unauthenticated
+  requests before any page/route body runs, so reaching here with no valid session means something
+  is genuinely wrong, not a normal case to handle gracefully. The blast radius stayed small because
+  every *other* query already took an explicit `householdId` parameter - the "single household"
+  assumption really did live in exactly one place, as the schema's original comment predicted
+  ("the natural extension point for multi-household support"). `swapMealInPlace`
+  (`generateAndPersist.ts`) resolves the household from `week.householdId` directly instead (via a
+  new `getHouseholdById`) rather than the session, since it isn't itself request-scoped.
+- **`getOrCreateHousehold()` kept, not removed** - purely a test/dev convenience now (7 integration
+  test files call it to get "just give me a household" with no login flow to go through), unreachable
+  from any real user-facing flow post-sign-up, so it causes no harm left in place. A household it
+  creates looks exactly like a migrated legacy row (`passwordHash: null`), which is a well-defined
+  state this design already handles.
+- **Onboarding reuses the existing `/api/household` PATCH route** rather than a new endpoint -
+  `OnboardingForm` is a stripped-down `SettingsForm`-shaped component (full form state seeded from the
+  freshly-created household's schema defaults, but only 4 fields are actually rendered: name, kids
+  count, supermarket, budget) that submits the complete PATCH body the route already expects, carrying
+  every other field through unchanged. No server-side change needed for onboarding at all.
+- **`NavBar` hidden on `/login`, `/signup`, `/onboarding`, `/welcome`** - showing nav links, and
+  especially a "Log out" button, before there's anything to log out of or before setup is even
+  finished, would be confusing.
+- **e2e smoke test rewritten** to sign up (invite code + password) rather than log in with a bare
+  password, since a fresh test DB has no household/account to log into anymore - this also gives the
+  whole sign-up → onboarding → welcome flow real Playwright coverage, not just the parts after it.
+  Asserts the welcome page shows a username matching `/^family\d+$/` rather than hardcoding
+  `"family1"`, since the exact number depends on how many households already exist in whichever DB
+  it runs against.
+- **Manually verified against the mocked dev server** (Playwright, not part of the automated suite):
+  the full signup → onboarding → welcome → Settings flow end-to-end with mobile-viewport (375px)
+  screenshots; and separately, the legacy-household transparent-upgrade path specifically - seeded a
+  `passwordHash: null` household, confirmed a wrong password still fails, confirmed the correct shared
+  password succeeds and upgrades the row, and confirmed a second login with that same password
+  succeeds via the normal hashed-password path (not the legacy fallback) afterward.
+
+## Backlog item: pantry-staple-aware Claude-in-Chrome shopping handoff - not built, reviewed first
+
+Prompted by the operator initially asking about a "plugin which books Sainsbury's baskets." That
+reopened the "Explicitly not planned" fully-unattended-checkout item in `REQUIREMENTS.md`, which says
+revisiting it needs an explicit conversation. Had that conversation directly (web search confirmed
+Sainsbury's still has no public consumer basket/ordering API, only unofficial third-party scrapers) -
+the conclusion was that a "plugin" doesn't change the risk calculus versus what's already flagged:
+automating a retailer's site without their authorization is the same concern regardless of whether
+Claude or custom code drives it. The operator then reframed toward what they actually wanted: not new
+automation, but a **better-informed version of the existing supervised handoff** from the "MVP 2 scope
+correction" entry above (paste a list into Claude in Chrome, a human watches the whole session, Claude
+stops before payment on its own). That's a materially different, much smaller risk - no new
+automation surface, no stored credentials, no unattended runs - so it's being treated as an ordinary
+feature request, reviewed and specified with the operator (like the original Goals selector review)
+rather than something needing further deliberation.
+
+**Root cause, reframed**: a real test run had Claude in Chrome buy a whole jar of honey for a recipe
+needing 1 tsp. Buying a whole jar isn't itself wrong - that's the only purchasable unit, you can't buy
+a teaspoon of honey at retail. The actual gap: the shopping list has no concept of "the household
+probably already has some of this," so a pantry staple gets treated identically to a real weekly-shop
+item every time, with no signal anywhere that it might be worth skipping.
+
+**Three design decisions made with the operator** (`AskUserQuestion`, two rounds, before writing the
+full spec into `REQUIREMENTS.md`):
+1. **What "Claude Plugin" concretely is**: confirmed as the existing Claude-in-Chrome copy-paste
+   handoff (per the "MVP 2 scope correction" entry) - not a new API/manifest-level integration. This
+   spec is entirely about the text the app generates for that paste, and a new box to paste Claude's
+   response back into - no new integration surface with Anthropic or Sainsbury's at all.
+2. **Where the "check with me first" confirmation happens**: inside the Claude browsing session
+   itself, not pre-filtered by the app into a separate "you deal with these" list. A human is present
+   for the whole session anyway (per the existing supervised-flow design), so it's simpler for Claude
+   to just ask inline than for the app to split the list and create two separate places to review
+   items.
+3. **What "run a tally" means**: an item count (bought vs. skipped), not a cost total. No price data
+   exists anywhere in the app today (the `budget` field is a free-text generation-steering hint, not a
+   real running total), and getting real prices back would need Claude Plugin to report them - a
+   bigger ask than was actually requested.
+
+**A fourth decision, made while drafting the spec itself** (not asked as a separate question, since
+there was a clearly better answer once the shape was concrete): the paste-back reconciliation needs
+Claude's summary to map back onto specific shopping-list rows reliably. Free-text fuzzy-matching
+("chicken breast" against a stored "chicken breast fillets") is exactly the kind of silent-failure
+risk this project avoids elsewhere (e.g. the ingredient-canonical fuzzy-matcher already has known
+edge cases) - so the export instead tags each line with a short stable reference number Claude is
+instructed to echo back verbatim (`BOUGHT [3]` / `SKIPPED [7]`), turning the paste-back parse into
+exact number-matching instead. Also decided the new `pantryStaple` flag should be singular rather than
+split into a second `smallQuantity` flag - the two would overlap in practice (you rarely need "a
+small quantity" of something that isn't also a staple) and a single flag is simpler to prompt Claude
+for honestly and simpler for the export/UI to render.
+
+**Not built yet** - this entry and the corresponding `REQUIREMENTS.md` backlog item are the
+"reviewed and specified" step, same as the original Goals selector review before it was built.
+
+## Pantry-staple-aware Claude-in-Chrome shopping handoff: prompt-generation build
+
+Operator: *"Can you start on the prompt work now? It should work for any historical list as I assume
+it can be generated on the fly using the existing metadata."* Built parts 1-2 of the three-part spec
+above (pantry-staple detection + the richer export); part 3 (paste-back reconciliation) is still not
+built. Two design revisions from the original spec came out of that one instruction and a piece of
+real feedback that arrived mid-build:
+
+- **`pantryStaple` moved from a generation-time Claude field to an export-time heuristic.** The
+  original spec (previous entry) had Claude set `Ingredient.pantryStaple: boolean` at generation time,
+  same pattern as the nutrition flags. The operator's "any historical list" requirement rules that out
+  outright: a field Claude sets when generating a week can only ever exist on weeks generated *after*
+  the feature ships - it can't retroactively apply to a week from three months ago, and every other
+  historical-JSON gotcha in this project (the Goals migration, the History page's defensive read) is a
+  reminder of exactly that limitation. Moved to `isPantryStaple()` in the new
+  `src/lib/shopping/pantryStaples.ts` instead - a static, curated keyword list matched against
+  `shoppingItems.productName` at export time (word-boundary regex, not a bare substring check, to
+  avoid e.g. "sugar" false-positiving inside "sugar snap peas" or "oil" inside "boiled"). This needs no
+  schema change and works identically on every stored week regardless of when it was generated, which
+  is what "generated on the fly using the existing metadata" actually meant. Favours precision over
+  recall throughout (a missed staple is a minor inconvenience; a wrongly-flagged real ingredient risks
+  it getting skipped in the basket) - documented in the file itself as an accepted approximation, same
+  category as the ingredient-canonical fuzzy-matcher's known edge cases.
+
+- **Real feedback from a live 78-item/52-minute Claude-in-Chrome session, relayed by the operator,
+  reshaped the export's shape and content.** Two findings mattered:
+  - Most of the session's time wasn't clicking - it was verification overhead: Sainsbury's product
+    cards don't reliably register a click first time, so the session was screenshotting and checking
+    the cart total after nearly every single add, and incrementing multi-unit items (7 lemons, 7 red
+    peppers) one click at a time rather than batching.
+  - Bouncing between unrelated categories in alphabetical order cost real time in page loads/
+    re-orientation; grouping searches by category up front would have helped.
+  Both went straight into `buildChromeHandoffPrompt`. The second one **reverses the "Shopping-list
+  plain-text export: flat, one line per item, no aisle headers" decision above, but for a different
+  reason than the one that decision was originally about** - that entry's reasoning ("an agent has no
+  use for which physical aisle it's in") is still true and still applies to `shoppingListAsPlainText`,
+  which is untouched. What changed is a second, independent reason to group by category that has
+  nothing to do with physical aisles: reducing how often the agent has to reorient between unrelated
+  searches. The same `aisle` field happens to serve both purposes, which is why it looks like the same
+  decision reversing itself when it's actually two different questions that happened to share input
+  data. The first finding became explicit verification-strategy guidance embedded in the prompt itself
+  (batch single-quantity adds with a spot-check at the end of the batch; single-click-and-verify for
+  anything needing more than one unit; a full-basket check only every 15-20 items or when something
+  looks off; skip zoom-in screenshots unless a result is genuinely ambiguous) - trading some of the
+  original session's caution for speed, on the basis that the household already reviews the whole
+  basket before paying (Claude already stops before payment on its own, an existing, unchanged
+  behaviour), so a missed item from lighter verification is caught there, cheaply, rather than needing
+  to be caught live mid-session.
+- **Numbering/grouping is computed once, deterministically** (`groupedByAisle` in `exportText.ts`:
+  group by `aisle` in first-seen order, alphabetical by name within each group) so a future paste-back
+  parser (part 3, still unbuilt) can reconstruct the same `[N] → item` mapping from the same stored
+  items independently, without needing the original prompt text kept around anywhere.
+- The existing shopping-list page's single button ("Copy as plain text" → now "Copy shopping prompt")
+  was updated in place to call the new function rather than adding a second button - its tip text
+  already described the Claude-in-Chrome handoff specifically (see the MVP 2 scope-correction entry
+  above), so upgrading its output in place is the same feature getting better, not a new one.
+- **Not built in this pass**: part 3, the paste-back reconciliation box that would tick off
+  `shoppingItems.checked` from Claude's `BOUGHT [N]`/`SKIPPED [N]` summary and show a tally. The
+  export already emits the exact format that box will need to parse, but the box itself, its parser,
+  and the tally UI don't exist yet.
