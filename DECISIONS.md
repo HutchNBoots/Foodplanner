@@ -1423,3 +1423,64 @@ for honestly and simpler for the export/UI to render.
 
 **Not built yet** - this entry and the corresponding `REQUIREMENTS.md` backlog item are the
 "reviewed and specified" step, same as the original Goals selector review before it was built.
+
+## Pantry-staple-aware Claude-in-Chrome shopping handoff: prompt-generation build
+
+Operator: *"Can you start on the prompt work now? It should work for any historical list as I assume
+it can be generated on the fly using the existing metadata."* Built parts 1-2 of the three-part spec
+above (pantry-staple detection + the richer export); part 3 (paste-back reconciliation) is still not
+built. Two design revisions from the original spec came out of that one instruction and a piece of
+real feedback that arrived mid-build:
+
+- **`pantryStaple` moved from a generation-time Claude field to an export-time heuristic.** The
+  original spec (previous entry) had Claude set `Ingredient.pantryStaple: boolean` at generation time,
+  same pattern as the nutrition flags. The operator's "any historical list" requirement rules that out
+  outright: a field Claude sets when generating a week can only ever exist on weeks generated *after*
+  the feature ships - it can't retroactively apply to a week from three months ago, and every other
+  historical-JSON gotcha in this project (the Goals migration, the History page's defensive read) is a
+  reminder of exactly that limitation. Moved to `isPantryStaple()` in the new
+  `src/lib/shopping/pantryStaples.ts` instead - a static, curated keyword list matched against
+  `shoppingItems.productName` at export time (word-boundary regex, not a bare substring check, to
+  avoid e.g. "sugar" false-positiving inside "sugar snap peas" or "oil" inside "boiled"). This needs no
+  schema change and works identically on every stored week regardless of when it was generated, which
+  is what "generated on the fly using the existing metadata" actually meant. Favours precision over
+  recall throughout (a missed staple is a minor inconvenience; a wrongly-flagged real ingredient risks
+  it getting skipped in the basket) - documented in the file itself as an accepted approximation, same
+  category as the ingredient-canonical fuzzy-matcher's known edge cases.
+
+- **Real feedback from a live 78-item/52-minute Claude-in-Chrome session, relayed by the operator,
+  reshaped the export's shape and content.** Two findings mattered:
+  - Most of the session's time wasn't clicking - it was verification overhead: Sainsbury's product
+    cards don't reliably register a click first time, so the session was screenshotting and checking
+    the cart total after nearly every single add, and incrementing multi-unit items (7 lemons, 7 red
+    peppers) one click at a time rather than batching.
+  - Bouncing between unrelated categories in alphabetical order cost real time in page loads/
+    re-orientation; grouping searches by category up front would have helped.
+  Both went straight into `buildChromeHandoffPrompt`. The second one **reverses the "Shopping-list
+  plain-text export: flat, one line per item, no aisle headers" decision above, but for a different
+  reason than the one that decision was originally about** - that entry's reasoning ("an agent has no
+  use for which physical aisle it's in") is still true and still applies to `shoppingListAsPlainText`,
+  which is untouched. What changed is a second, independent reason to group by category that has
+  nothing to do with physical aisles: reducing how often the agent has to reorient between unrelated
+  searches. The same `aisle` field happens to serve both purposes, which is why it looks like the same
+  decision reversing itself when it's actually two different questions that happened to share input
+  data. The first finding became explicit verification-strategy guidance embedded in the prompt itself
+  (batch single-quantity adds with a spot-check at the end of the batch; single-click-and-verify for
+  anything needing more than one unit; a full-basket check only every 15-20 items or when something
+  looks off; skip zoom-in screenshots unless a result is genuinely ambiguous) - trading some of the
+  original session's caution for speed, on the basis that the household already reviews the whole
+  basket before paying (Claude already stops before payment on its own, an existing, unchanged
+  behaviour), so a missed item from lighter verification is caught there, cheaply, rather than needing
+  to be caught live mid-session.
+- **Numbering/grouping is computed once, deterministically** (`groupedByAisle` in `exportText.ts`:
+  group by `aisle` in first-seen order, alphabetical by name within each group) so a future paste-back
+  parser (part 3, still unbuilt) can reconstruct the same `[N] → item` mapping from the same stored
+  items independently, without needing the original prompt text kept around anywhere.
+- The existing shopping-list page's single button ("Copy as plain text" → now "Copy shopping prompt")
+  was updated in place to call the new function rather than adding a second button - its tip text
+  already described the Claude-in-Chrome handoff specifically (see the MVP 2 scope-correction entry
+  above), so upgrading its output in place is the same feature getting better, not a new one.
+- **Not built in this pass**: part 3, the paste-back reconciliation box that would tick off
+  `shoppingItems.checked` from Claude's `BOUGHT [N]`/`SKIPPED [N]` summary and show a tally. The
+  export already emits the exact format that box will need to parse, but the box itself, its parser,
+  and the tally UI don't exist yet.

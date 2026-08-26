@@ -73,7 +73,7 @@ test("full flow: signup -> onboarding -> welcome -> intake -> generate (mocked) 
   await expect(page).toHaveURL(/\/plan\/[^/]+\/shopping$/);
   await expect(page.getByRole("heading", { name: "Meat & fish" })).toBeVisible();
   await expect(page.getByText("chicken breast")).toBeVisible();
-  await expect(page.getByRole("button", { name: "Copy as plain text" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Copy shopping prompt" })).toBeVisible();
 
   // Checklist behaviour: ticking an item persists (survives a reload), per
   // MVP 1.1's "must-ship" shopping-list checklist requirement.

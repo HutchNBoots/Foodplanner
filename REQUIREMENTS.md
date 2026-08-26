@@ -467,38 +467,52 @@ Per `PROJECT.md` §9, listed but explicitly deferred — pick up if/when priorit
   selections. UI: a single 3-item `TabStrip` for direction, multi-select `Chip`s for focus, in both
   `IntakeForm` and `SettingsForm`, plus a disclaimer line shown under the selector.
 - ⬜ **Pantry-staple-aware Claude-in-Chrome shopping handoff** — reviewed and specified with the
-  operator, not yet built. Prompted by a real test: Claude in Chrome bought a whole jar of honey for a
-  recipe needing 1 tsp. Not itself wrong (a jar is the only purchasable unit), but the shopping list
-  has no concept of "the household probably already has some of this" - every ingredient is treated
-  identically regardless of how likely it is to already be in the cupboard. **Explicitly distinct from
-  the "Explicitly not planned" fully-unattended-checkout item below**: this keeps a human present for
-  the whole session and never touches payment/checkout - it's a better-informed version of the
-  existing supervised "paste a list into Claude in Chrome, watch it shop" flow, not automation of it.
-  See `DECISIONS.md`'s "Pantry-staple-aware Claude-in-Chrome shopping handoff" entry for the three
-  design decisions made with the operator (`AskUserQuestion`, two rounds) this spec is built on.
-  Three parts:
-  1. **`Ingredient.pantryStaple: boolean`** - a new honest, evidence-based flag Claude sets at
-     generation time, same pattern as `cholesterolLowering`/`lowSaturatedFat`. Criteria: a shelf-stable
-     ingredient commonly kept stocked and used a little at a time across many recipes (herbs/spices,
-     oils, vinegars, condiments, stock cubes/paste, baking staples, honey) - about the ingredient
-     itself, not the quantity requested this week.
-  2. **A richer shopping-list export** replacing "Copy as plain text" - builds on the existing flat,
-     one-line-per-item format (`shoppingListAsPlainText`, deliberately not aisle-grouped for this
-     specific handoff - see DECISIONS.md's "Shopping-list plain-text export" entry, unchanged here),
-     adding a short stable reference number per line (e.g. `[3] chicken breast fillets - 500g`) so
-     Claude's later summary can refer back to it exactly rather than fuzzy-matching free text, plus a
-     `[CHECK]` marker on `pantryStaple` items. Wraps the list in explicit instructions: add
-     everything to the Sainsbury's basket, but for `[CHECK]` items pause and ask the household first
-     (may already have it) - the confirmation happens inside the Claude browsing session itself, not
-     pre-filtered by the app, since a human is present there for the whole session anyway. Ends by
-     asking Claude for a summary in a fixed, parseable format (`BOUGHT [3]` / `SKIPPED [7]`, one per
-     line) referencing those same reference numbers.
-  3. **A paste-back reconciliation box** on the shopping list page - the household pastes Claude's
+  operator, prompt-generation half shipped, paste-back reconciliation still to build. Prompted by a
+  real test: Claude in Chrome bought a whole jar of honey for a recipe needing 1 tsp. Not itself wrong
+  (a jar is the only purchasable unit), but the shopping list has no concept of "the household probably
+  already has some of this" - every ingredient is treated identically regardless of how likely it is to
+  already be in the cupboard. **Explicitly distinct from the "Explicitly not planned" fully-unattended-
+  checkout item below**: this keeps a human present for the whole session and never touches payment/
+  checkout - it's a better-informed version of the existing supervised "paste a list into Claude in
+  Chrome, watch it shop" flow, not automation of it. See `DECISIONS.md`'s "Pantry-staple-aware
+  Claude-in-Chrome shopping handoff" entry for the design decisions made with the operator
+  (`AskUserQuestion`, two rounds) plus real operator feedback from a live 78-item/52-minute session
+  that reshaped part 2 below. Three parts:
+  1. ✅ **Pantry-staple detection, `src/lib/shopping/pantryStaples.ts`** - revised during build from
+     the original spec's "Claude sets a field at generation time" to a static keyword list matched
+     against `productName` at export time (`isPantryStaple`) instead. The operator's reasoning: it
+     needs to work for any historical week's list, generated on the fly from data already stored, not
+     only weeks generated after this shipped - a generation-time field can never retroactively apply to
+     already-generated weeks. Word-boundary matching (not bare substring) to avoid false positives like
+     "sugar" inside "sugar snap peas".
+  2. ✅ **`buildChromeHandoffPrompt`, `src/lib/shopping/exportText.ts`** - replaced the shopping page's
+     "Copy as plain text" button (now "Copy shopping prompt"). Revised during build on a second point:
+     the original spec kept the existing flat, non-aisle-grouped format; real operator feedback from
+     shopping a 78-item list showed grouping by category (the existing `aisle` field) measurably helps
+     an agent avoid bouncing between unrelated searches, which reintroduces aisle-grouping for this
+     export specifically - for a different reason than the on-screen view's grouping (agent efficiency,
+     not a human walking a store). Each line gets a stable `[N]` reference number and a `[CHECK]` marker
+     on staples; the prompt also now embeds verification-strategy guidance grounded in that same
+     feedback (batch single-quantity adds with periodic spot-checks, single-click-and-verify for
+     multi-unit items, full-basket checks every 15-20 items, skip needless zoom screenshots) - trading
+     a little of the original session's per-click verification safety margin for speed, on the basis
+     that the household reviews the whole basket before paying anyway. Confirmation for `[CHECK]` items
+     happens inside the Claude session itself, not pre-filtered by the app.
+  3. ⬜ **A paste-back reconciliation box** on the shopping list page - the household pastes Claude's
      summary in, the app parses the `BOUGHT`/`SKIPPED` lines by reference number (exact match, not
      fuzzy), ticks the matching `shoppingItems.checked` (already exists, no new field) for `BOUGHT`
      items, and shows a tally (e.g. "18 bought, 4 skipped") - just an item count, not a cost total (no
      price data exists anywhere in the app today, and getting it would need Claude Plugin to report
      prices back, which wasn't asked for).
+- ⬜ **"My Recipes" epic** — flagged by the operator, logged for the next iteration, not yet reviewed
+  or scoped in detail (unlike the item above, this hasn't been through a requirements pass with the
+  operator yet - a placeholder marker, not a spec). The rough shape: a personal collection of recipes
+  the household can save/browse outside the week-by-week `History` flow, so a loved recipe doesn't
+  require remembering which week it was generated in to find again. Needs its own scoping pass before
+  being built - likely candidate stories: save/favourite an individual meal from any week's recipe
+  view; a dedicated "My Recipes" page to browse/search saved recipes; re-adding a saved recipe into a
+  future week's generation (e.g. as an explicit "include this" request, similar in spirit to
+  `avoidRepeating`'s opposite).
 
 ## Explicitly not planned
 
