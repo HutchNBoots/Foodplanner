@@ -54,7 +54,7 @@ describe("buildChromeHandoffPrompt", () => {
     const text = buildChromeHandoffPrompt([item("chicken breast", "700g", "Meat & fish")]);
     expect(text).toContain("Sainsbury's basket");
     expect(text).toContain("pause and ask me first");
-    expect(text).toContain("BOUGHT [N]");
+    expect(text).toContain("BOUGHT [N] £X.XX");
     expect(text).toContain("SKIPPED [N]");
     // Verification-strategy guidance from real operator feedback on a live
     // session (see DECISIONS.md) - batching for single-quantity items,

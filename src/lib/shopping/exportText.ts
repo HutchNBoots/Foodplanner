@@ -2,7 +2,7 @@ import type { shoppingItems } from "@/lib/db/schema";
 import { isPantryStaple } from "./pantryStaples";
 
 type ShoppingItem = Pick<typeof shoppingItems.$inferSelect, "productName" | "displayQuantity">;
-type ShoppingItemWithAisle = ShoppingItem & Pick<typeof shoppingItems.$inferSelect, "aisle">;
+export type ShoppingItemWithAisle = ShoppingItem & Pick<typeof shoppingItems.$inferSelect, "aisle">;
 
 /** Plain-text export of the shopping list (MVP 2, see DECISIONS.md's "MVP 2
  * scope correction" entry) - one line per item, canonical product name +
@@ -21,9 +21,13 @@ export function shoppingListAsPlainText(items: ShoppingItem[]): string {
 
 /** Groups by `aisle` (insertion order of first appearance), alphabetical by
  * product name within each group - deterministic, so `buildChromeHandoffPrompt`
- * and the (future) paste-back parser can both derive the same `[N]`
- * reference from the same underlying item list independently. */
-function groupedByAisle<T extends ShoppingItemWithAisle>(items: T[]): T[] {
+ * and the paste-back parser (`parseChromeHandoffSummary` in
+ * `src/lib/shopping/parseSummary.ts`) can both derive the same `[N]`
+ * reference from the same underlying item list independently, as long as
+ * they're both called with the same items array. Exported for that reason -
+ * the paste-back side needs to reproduce this exact ordering, not just the
+ * export side. */
+export function groupedByAisle<T extends ShoppingItemWithAisle>(items: T[]): T[] {
   const groups = new Map<string, T[]>();
   for (const item of items) {
     const list = groups.get(item.aisle) ?? [];
@@ -59,7 +63,14 @@ function groupedByAisle<T extends ShoppingItemWithAisle>(items: T[]): T[] {
  * batched adds with periodic spot-checks rather than one-by-one - on the
  * basis that the household reviews the whole basket before paying anyway
  * (Claude already stops before payment), so a missed item is caught there,
- * cheaply, rather than needing to be caught live. */
+ * cheaply, rather than needing to be caught live.
+ *
+ * The requested summary format includes a price per bought item
+ * (`BOUGHT [N] £X.XX`) - Claude's honest best-effort read of what it saw on
+ * the product page, not a verified/guaranteed-accurate figure - so the
+ * paste-back reconciliation (`ShoppingList.tsx`, `parseChromeHandoffSummary`)
+ * can show a spend total per category. See DECISIONS.md's "Paste-back
+ * reconciliation: category summary + spend" entry. */
 export function buildChromeHandoffPrompt(items: ShoppingItemWithAisle[]): string {
   if (items.length === 0) return "";
 
@@ -81,7 +92,7 @@ How to verify as you go (Sainsbury's product cards don't always register a click
 - Only zoom in on a screenshot when a result is genuinely ambiguous - the on-page count is usually readable at normal resolution.
 
 Once you're done (or if I ask you to stop), reply with a summary in exactly this format, one line per item, in any order:
-BOUGHT [N]
+BOUGHT [N] £X.XX (the price you saw on the product page)
 SKIPPED [N] - brief reason
 
 Shopping list:

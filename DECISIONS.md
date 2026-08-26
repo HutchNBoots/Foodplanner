@@ -1525,3 +1525,49 @@ the spec depends on which way it goes.
 
 **Still not built** - this and the original three-part entry are both spec-only. Nothing about
 `categories.ts`, the extended prompt format, or the paste-back UI exists in code yet.
+
+## Paste-back reconciliation: build
+
+Operator: *"build the way to receive it next before we deploy."* Built exactly what the two
+requirements passes above specified - `src/lib/shopping/categories.ts` (the taxonomy),
+`src/lib/shopping/parseSummary.ts` (parses `BOUGHT [N] £X.XX` / `SKIPPED [N] - reason`),
+`src/lib/shopping/reconcile.ts` (combines both plus the export's `groupedByAisle` ordering into a
+category-grouped, spend-totalled result), and a new "Reconcile after shopping" collapsible section in
+`ShoppingList.tsx`. `buildChromeHandoffPrompt`'s requested summary format was updated in place to
+`BOUGHT [N] £X.XX`.
+
+- **Resolved the one open detail from the requirements pass**: the reconciliation is session-only, not
+  persisted. No `shoppingItems.pricePaid` column was added. Reasoning: `checked` - the one piece of
+  state actually worth keeping across a reload/device-switch - already persists via the existing PATCH
+  endpoint, unchanged; the price and category breakdown are cheap to recompute from a re-pasted summary
+  and this is a one-time "review right after shopping" action, not something a household would expect
+  to come back and look at days later. Avoids a schema/migration change immediately before a deploy for
+  a piece of state that doesn't need durability.
+- **`reconcile()` extracted into its own module** rather than living inside `ShoppingList.tsx`, same
+  "logic in a testable pure function, thin UI wrapper" pattern used elsewhere in this project (e.g.
+  `swapMealInPlace` vs. its route handler) - lets the whole numbering → parsing → categorizing →
+  totalling pipeline be tested directly (`tests/unit/shopping-reconcile.test.ts`) without going through
+  React component rendering.
+- **An item the pasted summary never mentions comes back as `"unreported"`**, a third state alongside
+  bought/skipped, rendered with its own marker (`?`) rather than silently defaulting either way - Claude
+  stopping early, the household pasting a partial summary, or a dropped line all look the same from the
+  parser's side, and guessing which of bought/skipped it "probably" was would be worse than just saying
+  "check this one yourself."
+- **`groupedByAisle` exported from `exportText.ts`** (was module-private) specifically so `reconcile.ts`
+  can reproduce the exact same `[N]` ordering independently, as long as it's called with the same items
+  array the prompt was generated from - the numbering was never stored anywhere, it's derived
+  identically both times from the same deterministic function.
+- **A real category-mapping gap caught by manually running the whole flow end to end** (signup →
+  onboarding → generate a week → copy the shopping prompt → paste a fabricated summary back →
+  check the rendered category breakdown), not by the unit tests, which used hand-picked aisle strings
+  that happened to already match the keyword list: this app's actual generated aisle names are "Fresh
+  produce" and "Chilled & dairy" (see `src/lib/claude/mock.ts`), not the more generic "Fruit &
+  veg"/"Dairy" `categorizeItem`'s keyword list was originally written against. "mixed vegetables"
+  (aisle: "Fresh produce") landed in **Other** instead of **Veg & Fruit** until "produce" was added as
+  a keyword - fixed, and a regression test added
+  (`tests/unit/shopping-categories.test.ts`'s "handles the actual aisle strings this app generates").
+  Worth remembering for any future aisle-text heuristic in this app: check it against `mock.ts`'s real
+  strings, not just plausible-sounding examples.
+- Also verified during that same manual pass: a "Copy shopping prompt" → (fabricated) paste-back →
+  category summary round trip correctly ticks off the matching checkboxes in the on-screen list above
+  the reconciliation section (5 of 6 items checked matching 5 `BOUGHT` + 1 `SKIPPED` lines pasted in).
