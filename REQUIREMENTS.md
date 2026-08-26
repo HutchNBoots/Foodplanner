@@ -466,18 +466,18 @@ Per `PROJECT.md` §9, listed but explicitly deferred — pick up if/when priorit
   direction; kids/family-occasion meals always stay "Balanced" with no focuses regardless of
   selections. UI: a single 3-item `TabStrip` for direction, multi-select `Chip`s for focus, in both
   `IntakeForm` and `SettingsForm`, plus a disclaimer line shown under the selector.
-- ⬜ **Pantry-staple-aware Claude-in-Chrome shopping handoff** — reviewed and specified with the
-  operator, prompt-generation half shipped, paste-back reconciliation still to build. Prompted by a
-  real test: Claude in Chrome bought a whole jar of honey for a recipe needing 1 tsp. Not itself wrong
-  (a jar is the only purchasable unit), but the shopping list has no concept of "the household probably
-  already has some of this" - every ingredient is treated identically regardless of how likely it is to
-  already be in the cupboard. **Explicitly distinct from the "Explicitly not planned" fully-unattended-
-  checkout item below**: this keeps a human present for the whole session and never touches payment/
-  checkout - it's a better-informed version of the existing supervised "paste a list into Claude in
-  Chrome, watch it shop" flow, not automation of it. See `DECISIONS.md`'s "Pantry-staple-aware
-  Claude-in-Chrome shopping handoff" entry for the design decisions made with the operator
-  (`AskUserQuestion`, two rounds) plus real operator feedback from a live 78-item/52-minute session
-  that reshaped part 2 below. Three parts:
+- ✅ **Pantry-staple-aware Claude-in-Chrome shopping handoff** — reviewed and specified with the
+  operator, fully shipped. Prompted by a real test: Claude in Chrome bought a whole jar of honey for a
+  recipe needing 1 tsp. Not itself wrong (a jar is the only purchasable unit), but the shopping list
+  had no concept of "the household probably already has some of this" - every ingredient was treated
+  identically regardless of how likely it is to already be in the cupboard. **Explicitly distinct from
+  the "Explicitly not planned" fully-unattended-checkout item below**: this keeps a human present for
+  the whole session and never touches payment/checkout - it's a better-informed version of the
+  existing supervised "paste a list into Claude in Chrome, watch it shop" flow, not automation of it.
+  See `DECISIONS.md`'s "Pantry-staple-aware Claude-in-Chrome shopping handoff" entries (review, prompt
+  build, and paste-back build) for the full design history, including real operator feedback from a
+  live 78-item/52-minute session that reshaped part 2, and a live-tested category-mapping fix (part 3)
+  caught by manually running the whole flow end to end. Three parts, all shipped:
   1. ✅ **Pantry-staple detection, `src/lib/shopping/pantryStaples.ts`** - revised during build from
      the original spec's "Claude sets a field at generation time" to a static keyword list matched
      against `productName` at export time (`isPantryStaple`) instead. The operator's reasoning: it
@@ -497,13 +497,26 @@ Per `PROJECT.md` §9, listed but explicitly deferred — pick up if/when priorit
      multi-unit items, full-basket checks every 15-20 items, skip needless zoom screenshots) - trading
      a little of the original session's per-click verification safety margin for speed, on the basis
      that the household reviews the whole basket before paying anyway. Confirmation for `[CHECK]` items
-     happens inside the Claude session itself, not pre-filtered by the app.
-  3. ⬜ **A paste-back reconciliation box** on the shopping list page - the household pastes Claude's
-     summary in, the app parses the `BOUGHT`/`SKIPPED` lines by reference number (exact match, not
-     fuzzy), ticks the matching `shoppingItems.checked` (already exists, no new field) for `BOUGHT`
-     items, and shows a tally (e.g. "18 bought, 4 skipped") - just an item count, not a cost total (no
-     price data exists anywhere in the app today, and getting it would need Claude Plugin to report
-     prices back, which wasn't asked for).
+     happens inside the Claude session itself, not pre-filtered by the app. Requested paste-back summary
+     format extended to `BOUGHT [N] £X.XX` (price is Claude's honest best-effort read of the product
+     page, not verified) alongside the existing `SKIPPED [N] - reason`.
+  3. ✅ **Paste-back reconciliation, `src/lib/shopping/{categories,parseSummary,reconcile}.ts` +
+     `ShoppingList.tsx`** - a collapsible "Reconcile after shopping" section on the shopping list page:
+     paste Claude's summary into a textarea, "Process summary" parses it by `[N]` reference number
+     (exact match, not fuzzy), ticks the matching `shoppingItems.checked` for `BOUGHT` items (same
+     PATCH endpoint the manual checkboxes already use), and renders a category-grouped spend summary -
+     a new fixed taxonomy (`categorizeItem`: Protein, Veg & Fruit, Dairy, Bakery, Frozen, Store
+     Cupboard, Staples, Other; staples take priority over aisle mapping) with a £ total per category
+     and every item listed underneath showing bought/skipped/unreported status. **Decided at build
+     time** (the one detail left open in the requirements pass): the reconciliation is session-only,
+     not persisted - `checked` (the state actually worth keeping) already survives reload via the
+     existing PATCH; the reported price and category breakdown are recomputed fresh each time a summary
+     is pasted, since this is a one-time "review right after shopping" action, not something that needs
+     a history. **A real category-mapping gap was caught during manual end-to-end testing**: this app's
+     actual generated aisle names are "Fresh produce" and "Chilled & dairy" (see
+     `src/lib/claude/mock.ts`), not the more generic "Fruit & veg"/"Dairy" the keyword list was
+     originally written against - "mixed vegetables" landed in Other instead of Veg & Fruit until
+     "produce" was added as a keyword.
 - ⬜ **"My Recipes" epic** — flagged by the operator, logged for the next iteration, not yet reviewed
   or scoped in detail (unlike the item above, this hasn't been through a requirements pass with the
   operator yet - a placeholder marker, not a spec). The rough shape: a personal collection of recipes
