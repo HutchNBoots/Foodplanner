@@ -1211,3 +1211,44 @@ conflation):
   `aria-pressed` state persist; the Intake form defaulting to the saved direction on next visit; and
   submitting a week with a non-default direction+focuses combination reaching `/api/generate`
   successfully (202, weekId returned).
+
+## History page: delete a week, formatted per-week summary
+
+Operator ask, three related items: delete a week from History (and the database, not just the list),
+format the per-week summary, and make sure the "About this week" text is viewable from History without
+having to open the full plan page. Treated as one cohesive History-page pass rather than three
+unrelated tweaks, since #2 and #3 turned out to be the same underlying change.
+
+- **Delete**: `deleteWeek(id)` (`src/lib/db/queries.ts`) does `DELETE FROM weeks WHERE id = ...` and
+  nothing else - `meals`, `shopping_items`, and `feedback` all reference `weekId` with
+  `onDelete: "cascade"` (already true of the schema, not a new FK), so the database removes them in
+  the same statement rather than the app doing three separate deletes. `freezer_inventory
+  .frozenFromWeekId` is `onDelete: "set null"`, so freezer stock a deleted week batch-froze correctly
+  survives - it just loses the (informational-only) link to which week froze it. New `DELETE
+  /api/weeks/[weekId]` route, idempotent (deleting an already-gone week is still a 200, same
+  convention as the freezer-item removal route). Covered by
+  `tests/unit/delete-week.test.ts` (PGlite + mocked generation): asserts meals/shopping/feedback are
+  actually gone after delete, not just the `weeks` row, and that a second delete doesn't throw.
+- **Confirm before delete**: a two-tap inline confirm (`DeleteWeekButton` - tap the trash icon, it
+  becomes "Delete? / Cancel", tap "Delete?" to actually go through) rather than a native `confirm()`
+  dialog, to stay in the app's own visual language, and rather than a single-tap delete like the
+  freezer item's "Used it" button - a whole week's meals/shopping/feedback is a bigger loss than one
+  freezer entry, worth one extra tap to guard against a mis-tap.
+- **Formatted summary**: each History row now shows what was actually asked for that week - days
+  needed + the nutrition goal (direction + any focuses, e.g. "Full week · Lose weight + Reduce
+  cholesterol") - instead of just a bare date and generation timestamp. Reuses the same short labels
+  as the Goals selector UI, kept local to `history/page.tsx` rather than a shared labels module,
+  matching this codebase's existing per-file-label-map convention (see e.g. `IntakeForm`'s
+  `EFFORT_OPTIONS`).
+- **"About this week" viewable from History directly**: the week's notes (truncated to 2 lines) and
+  avoid-repeating list now render right in the History row itself - the same underlying data
+  `WeekIntakeSummary` already shows on the full plan page, just also surfaced one level up so you
+  don't have to open a week to remember why it said what it said. This didn't require a new query -
+  `listWeeks` already `select()`s the whole `weeks` row, `intakeJson` included.
+- **Defensive read of historical `intakeJson`**: `intakeJson` is stored verbatim at generation time
+  and never rewritten by later migrations (an explicit decision - see "Goals selector: two-axis
+  redesign" above). A week generated before the Goals selector existed has `energyDirection`/`focuses`
+  genuinely `undefined` at runtime despite `WeekIntake` typing them as required fields. The History
+  page's `goalSummary()` checks for this and renders nothing for the goal segment on such rows rather
+  than crashing or printing "undefined" - same "don't trust the type for historical JSON" caution
+  applied when `lowerCholesterol` was dropped and when the original 4-way `Goal` enum replaced it.
