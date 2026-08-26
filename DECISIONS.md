@@ -1252,3 +1252,29 @@ unrelated tweaks, since #2 and #3 turned out to be the same underlying change.
   page's `goalSummary()` checks for this and renders nothing for the goal segment on such rows rather
   than crashing or printing "undefined" - same "don't trust the type for historical JSON" caution
   applied when `lowerCholesterol` was dropped and when the original 4-way `Goal` enum replaced it.
+
+## Kids weekly batch-cook-to-freezer
+
+Operator ask (alongside a design discussion about a sign-up journey, which is being tackled
+separately - see the "Deliberately not built" entry's follow-up when that lands): *"for children's
+meal it's always good to do a batch cook each week... to add to the freezer for future weeks."*
+
+- **Strengthened, not new**: the freezer inventory backlog feature already built all the machinery
+  this needs (`batchCook.freezerPortions`, the `freezer_inventory` table, `usesFreezerItem`) and the
+  system prompt already said kids meals should "skew toward batch-cook-and-freeze" - but only as an
+  encouragement, not a requirement, so real generations could go a whole week without one. This just
+  turns that encouragement into a standing rule: **whenever the kids track is active a given week (at
+  least one kids meal-time selected), at least one kids meal must freeze portions.**
+- **Framed as a rotating stash, not a one-off**: the prompt explicitly says to do this "most weeks the
+  kids track runs, not just when the freezer happens to be empty" and to freeze a *different* item if
+  the freezer's already stocked, rather than treating the freezer being non-empty as a reason to skip
+  freezing that week - the point is variety building up over time (this week's ragu, next week's
+  meatballs), not a single default portion sitting in the freezer forever.
+- **No schema or freezer-consumption-logic change** - this is purely a system-prompt strengthening.
+  `mock.ts`'s existing kids-dinner-on-Monday freezer example (`freezerPortions: 4`, see its comment)
+  already modelled this exact shape before this change, so no mock update was needed either.
+- **Verified via content-assertion tests only** (`tests/unit/system-prompt-method-steps.test.ts`),
+  same limitation as every other prompt-tuning item in this project: this sandbox has no live
+  `ANTHROPIC_API_KEY`, so whether Claude actually follows the strengthened instruction in practice
+  can only be confirmed by the operator watching a few real weeks generate, not by an automated test
+  here.
