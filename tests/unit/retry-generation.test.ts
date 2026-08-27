@@ -15,7 +15,8 @@ delete process.env.DATABASE_URL;
 
 const sampleIntake = {
   weekStartDate: "2026-08-10",
-  daysMode: "full_week" as const,
+  numDays: 7,
+  deliveryTime: "",
   familyMeals: { satBreakfast: "sit_down", satEvening: "sit_down", sunLunch: "sit_down" } as const,
   parentMeals: { breakfast: false, lunch: true, dinner: true } as const,
   kidsMeals: { breakfast: true, lunch: true, dinner: true } as const,

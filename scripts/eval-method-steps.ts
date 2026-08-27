@@ -86,7 +86,8 @@ async function main() {
     household: fakeHousehold,
     weekStartDate: "2026-08-10",
     intake: {
-      daysMode: "full_week",
+      numDays: 7,
+      deliveryTime: "",
       familyMeals: { satBreakfast: "sit_down", satEvening: "sit_down", sunLunch: "sit_down" },
       parentMeals: { breakfast: false, lunch: true, dinner: true },
       kidsMeals: { breakfast: true, lunch: true, dinner: true },

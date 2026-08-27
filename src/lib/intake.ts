@@ -37,8 +37,19 @@ export const mealTimesNeededSchema = z.object({
 });
 
 export const weekIntakeSchema = z.object({
+  // The date the household's shop/order arrives - day 1 of the plan (see
+  // DECISIONS.md's "Calendar-based days selection" entry). No longer assumed
+  // to be a Monday - `numDays` below covers however long that shop needs to
+  // last, starting from whatever day it actually lands on.
   weekStartDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Expected an ISO date (yyyy-mm-dd)."),
-  daysMode: z.enum(["full_week", "weekdays_only", "mon_to_sat"]),
+  // Replaces the old 3-preset `daysMode` ("full_week"/"weekdays_only"/
+  // "mon_to_sat") - the day count now comes from how long a shop needs to
+  // cover, not a fixed calendar-week shape. 14 is a generous cap - beyond
+  // that a single shop realistically isn't still covering fresh ingredients.
+  numDays: z.number().int().min(1).max(14),
+  // Optional, display-only reminder of what time the order lands (e.g.
+  // "18:00") - never affects which meals get planned (see DECISIONS.md).
+  deliveryTime: z.string().default(""),
   familyMeals: familyMealsSchema,
   // Defaults match pre-MVP2.1 behaviour exactly (adults: lunch+dinner, no
   // breakfast; kids: all three) if the client ever omits these fields.
@@ -60,14 +71,10 @@ export const weekIntakeSchema = z.object({
 
 export type WeekIntakeInput = z.infer<typeof weekIntakeSchema>;
 
-/** Defaults the intake form's week picker to the coming Monday (or today, if
- * today already is one) so starting a new week is a single confirm tap. */
-export function upcomingMonday(from: Date = new Date()): string {
-  const date = new Date(from);
-  const day = date.getDay(); // 0 = Sunday
-  const daysUntilMonday = day === 1 ? 0 : ((8 - day) % 7 || 7);
-  date.setDate(date.getDate() + (day === 1 ? 0 : daysUntilMonday));
-  return date.toISOString().slice(0, 10);
+/** Defaults the intake form's calendar picker to today, so starting a new
+ * week is a single confirm tap unless the actual delivery date is later. */
+export function todayISO(from: Date = new Date()): string {
+  return from.toISOString().slice(0, 10);
 }
 
 const DAY_NAMES = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"] as const;
@@ -79,11 +86,17 @@ function dayName(date: Date): string {
   return DAY_NAMES[date.getDay() as 0 | 1 | 2 | 3 | 4 | 5 | 6];
 }
 
-/** Expands an intake's daysMode + weekStartDate into the concrete list of
- * (date, dayOfWeek) pairs the generation prompt should plan for. */
-export function daysForIntake(intake: Pick<WeekIntakeInput, "weekStartDate" | "daysMode">) {
+/** Expands an intake's numDays + weekStartDate (the delivery date) into the
+ * concrete list of (date, dayOfWeek) pairs the generation prompt should plan
+ * for - starting from whatever day the shop actually lands on, not
+ * necessarily a Monday (see DECISIONS.md's "Calendar-based days selection"
+ * entry). The family-occasion (Saturday/Sunday) and kids-track (Mon-Sat)
+ * logic elsewhere already keys off `dayOfWeek` rather than position, so it
+ * needs no change here to keep working for an arbitrary start day/length -
+ * including a >7-day span that spans two Saturdays/Sundays. */
+export function daysForIntake(intake: Pick<WeekIntakeInput, "weekStartDate" | "numDays">) {
   const start = new Date(`${intake.weekStartDate}T00:00:00`);
-  const count = intake.daysMode === "full_week" ? 7 : intake.daysMode === "mon_to_sat" ? 6 : 5;
+  const count = intake.numDays;
 
   return Array.from({ length: count }, (_, i) => {
     const date = new Date(start);

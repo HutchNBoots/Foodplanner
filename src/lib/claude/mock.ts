@@ -10,7 +10,7 @@ import type { MealPlanItem, WeekPlan } from "./schema";
  * the leftover cap, and MVP 2.1's per-track meal-time toggles. */
 export function buildMockWeekPlan(params: {
   weekStartDate: string;
-  daysMode: WeekIntake["daysMode"];
+  numDays: WeekIntake["numDays"];
   familyMeals: FamilyMeals;
   parentMeals: MealTimesNeeded;
   kidsMeals: MealTimesNeeded;

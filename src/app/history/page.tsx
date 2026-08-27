@@ -22,11 +22,25 @@ const GENERATED_AT_FORMAT = new Intl.DateTimeFormat("en-GB", {
   minute: "2-digit",
 });
 
-const DAYS_MODE_LABEL: Record<WeekIntake["daysMode"], string> = {
+// Pre-"Calendar-based days selection" weeks (see DECISIONS.md) stored one of
+// these 3 presets instead of a plain day count - `intakeJson` is stored
+// verbatim and never rewritten by later migrations, so a week generated
+// before that change genuinely has `daysMode` (not `numDays`) at runtime
+// despite `WeekIntake` no longer declaring that field.
+type LegacyDaysMode = "full_week" | "weekdays_only" | "mon_to_sat";
+const LEGACY_DAYS_MODE_LABEL: Record<LegacyDaysMode, string> = {
   full_week: "Full week",
   weekdays_only: "Weekdays",
   mon_to_sat: "Mon-Sat",
 };
+
+/** Handles both shapes: a current week's plain `numDays`, or an old week's
+ * `daysMode` preset (see the comment above `LEGACY_DAYS_MODE_LABEL`). */
+function daysLabel(intake: WeekIntake): string | null {
+  if (intake.numDays) return `${intake.numDays} day${intake.numDays === 1 ? "" : "s"}`;
+  const legacyMode = (intake as unknown as { daysMode?: LegacyDaysMode }).daysMode;
+  return legacyMode ? (LEGACY_DAYS_MODE_LABEL[legacyMode] ?? null) : null;
+}
 
 const DIRECTION_LABEL: Record<WeekIntake["energyDirection"], string> = {
   lose_weight: "Lose weight",
@@ -71,7 +85,7 @@ export default async function HistoryPage() {
             const intake = week.intakeJson;
             const hasNotes = Boolean(intake.notes?.trim().length);
             const hasAvoid = Boolean(intake.avoidRepeating?.length);
-            const daysLabel = DAYS_MODE_LABEL[intake.daysMode] ?? null;
+            const days = daysLabel(intake);
             const goal = goalSummary(intake);
 
             return (
@@ -85,9 +99,9 @@ export default async function HistoryPage() {
                     <p className="data-figure text-xs text-ink-400">
                       Generated {GENERATED_AT_FORMAT.format(new Date(week.createdAt))}
                     </p>
-                    {(daysLabel || goal) && (
+                    {(days || goal) && (
                       <p className="mt-1.5 text-xs text-ink-500">
-                        {[daysLabel, goal].filter(Boolean).join(" · ")}
+                        {[days, goal].filter(Boolean).join(" · ")}
                       </p>
                     )}
                     {hasNotes && (

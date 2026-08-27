@@ -4,7 +4,8 @@ import { weekIntakeSchema } from "@/lib/intake";
 function baseBody(familyMeals: Record<string, string>) {
   return {
     weekStartDate: "2026-08-03",
-    daysMode: "full_week",
+    numDays: 7,
+    deliveryTime: "",
     familyMeals,
     dishStyles: [],
     proteins: [],

@@ -84,12 +84,6 @@ function mealTimesLabel(needed: MealTimesNeeded): string {
   return excluded.length ? `${included.join(", ")} (no ${excluded.join(" or ")})` : included.join(", ");
 }
 
-const DAYS_MODE_LABEL: Record<WeekIntake["daysMode"], string> = {
-  full_week: "all 7 days",
-  weekdays_only: "weekdays only (Monday-Friday)",
-  mon_to_sat: "Monday through Saturday",
-};
-
 const EFFORT_LABEL: Record<WeekIntake["effort"], string> = {
   quick: "quick and easy - minimise active cooking time and steps",
   mixed: "a mix of quick meals and a bit more involved cooking",
@@ -157,10 +151,9 @@ export function buildUserPrompt(params: {
 
   const excludedProteins = PROTEIN_TYPES.filter((p) => !intake.proteins.includes(p));
 
-  return `Plan the week starting ${weekStartDate}.
+  return `Plan ${intake.numDays} day${intake.numDays === 1 ? "" : "s"} of meals, starting ${weekStartDate}.
 
-Days needed: ${DAYS_MODE_LABEL[intake.daysMode]}.
-Family occasions this week: Saturday breakfast - ${OCCASION_MODE_LABEL[intake.familyMeals.satBreakfast] ?? intake.familyMeals.satBreakfast}; Saturday evening - ${OCCASION_MODE_LABEL[intake.familyMeals.satEvening] ?? intake.familyMeals.satEvening}; Sunday lunch - ${OCCASION_MODE_LABEL[intake.familyMeals.sunLunch] ?? intake.familyMeals.sunLunch}. (Only apply an occasion if that day is actually within the days needed above - e.g. if only weekdays are needed, no family occasions apply this week regardless of these settings.)
+Family occasions this week: Saturday breakfast - ${OCCASION_MODE_LABEL[intake.familyMeals.satBreakfast] ?? intake.familyMeals.satBreakfast}; Saturday evening - ${OCCASION_MODE_LABEL[intake.familyMeals.satEvening] ?? intake.familyMeals.satEvening}; Sunday lunch - ${OCCASION_MODE_LABEL[intake.familyMeals.sunLunch] ?? intake.familyMeals.sunLunch}. (Only apply an occasion if that Saturday/Sunday actually falls within the days being planned above - e.g. a short order that doesn't reach a weekend gets no family occasions this week regardless of these settings. If the span happens to cover two Saturdays or two Sundays, apply the same setting to both.)
 Meal-times needed this week - parents (track "adult"): ${mealTimesLabel(intake.parentMeals)}. Kids (track "kids"): ${mealTimesLabel(intake.kidsMeals)}.
 Preferred dish styles this week: ${intake.dishStyles.length ? intake.dishStyles.join(", ") : "no preference"}.
 Proteins to use this week: ${intake.proteins.length ? intake.proteins.join(", ") : "none specified, use reasonable judgement"}.${excludedProteins.length ? ` Do NOT use these at all this week: ${excludedProteins.join(", ")}.` : ""}

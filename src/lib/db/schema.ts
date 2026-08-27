@@ -281,7 +281,18 @@ export type MealTimesNeeded = {
 };
 
 export type WeekIntake = {
-  daysMode: "full_week" | "weekdays_only" | "mon_to_sat";
+  // How many days the shop starting `weeks.weekStartDate` needs to cover -
+  // replaces the old 3-preset `daysMode` (see DECISIONS.md's "Calendar-based
+  // days selection" entry). A week generated before this field existed has
+  // it genuinely `undefined` at runtime despite the required type here -
+  // `intakeJson` is stored verbatim and never rewritten by later migrations,
+  // same caveat as `energyDirection`/`focuses` below - guard against that in
+  // any code reading historical data instead of trusting this type.
+  numDays: number;
+  /** Optional, display-only reminder of what time the order lands - never
+   * affects which meals get planned. Empty string if not given. Also
+   * genuinely `undefined` on pre-existing weeks, same caveat as `numDays`. */
+  deliveryTime: string;
   familyMeals: FamilyMeals;
   parentMeals: MealTimesNeeded;
   kidsMeals: MealTimesNeeded;
