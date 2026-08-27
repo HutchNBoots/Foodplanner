@@ -19,7 +19,8 @@ const sampleIntake = {
   // family occasion instead - this test needs a real batch-cook meal to
   // exist (see src/lib/claude/mock.ts's `i === 0` batchCook example).
   weekStartDate: "2026-08-03",
-  daysMode: "full_week" as const,
+  numDays: 7,
+  deliveryTime: "",
   familyMeals: { satBreakfast: "sit_down", satEvening: "sit_down", sunLunch: "sit_down" } as const,
   parentMeals: { breakfast: false, lunch: true, dinner: true } as const,
   kidsMeals: { breakfast: true, lunch: true, dinner: true } as const,

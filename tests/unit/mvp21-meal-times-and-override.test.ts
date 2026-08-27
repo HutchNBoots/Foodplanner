@@ -27,7 +27,8 @@ function baseHousehold(overrides: Partial<Household> = {}): Household {
 
 function baseIntake(overrides: Partial<WeekIntake> = {}): WeekIntake {
   return {
-    daysMode: "full_week",
+    numDays: 7,
+    deliveryTime: "",
     familyMeals: { satBreakfast: "sit_down", satEvening: "sit_down", sunLunch: "sit_down" },
     parentMeals: { breakfast: false, lunch: true, dinner: true },
     kidsMeals: { breakfast: true, lunch: true, dinner: true },

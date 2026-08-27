@@ -34,7 +34,7 @@ export async function generateWeekPlan(params: {
   if (process.env.MOCK_GENERATION === "1") {
     return buildMockWeekPlan({
       weekStartDate: params.weekStartDate,
-      daysMode: params.intake.daysMode,
+      numDays: params.intake.numDays,
       familyMeals: params.intake.familyMeals,
       parentMeals: params.intake.parentMeals,
       kidsMeals: params.intake.kidsMeals,

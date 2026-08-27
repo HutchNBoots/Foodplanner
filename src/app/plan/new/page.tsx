@@ -1,5 +1,5 @@
 import { getCurrentHousehold, getRecentMealTitles } from "@/lib/db/queries";
-import { PROTEIN_TYPES, upcomingMonday } from "@/lib/intake";
+import { PROTEIN_TYPES, todayISO } from "@/lib/intake";
 import { deemphasisedStyles, DISH_STYLES } from "@/lib/season";
 
 export const dynamic = "force-dynamic";
@@ -16,7 +16,7 @@ export default async function NewWeekPage() {
         A few quick questions, then Claude generates the full week.
       </p>
       <IntakeForm
-        defaultWeekStartDate={upcomingMonday()}
+        defaultWeekStartDate={todayISO()}
         defaultSatBreakfastMode={household.satBreakfastDefaultMode as "sit_down" | "skip"}
         defaultSatEveningMode={household.satEveningDefaultMode as "sit_down" | "bbq" | "skip"}
         defaultSunLunchMode={household.sunLunchDefaultMode as "sit_down" | "bbq" | "skip"}

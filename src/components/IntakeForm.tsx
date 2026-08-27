@@ -5,8 +5,9 @@ import { useState } from "react";
 import { TabStrip } from "./TabStrip";
 import { Chip } from "./Chip";
 import { CollapsibleTrackSection, TrackSection } from "./IndexTab";
+import { CalendarDatePicker } from "./CalendarDatePicker";
+import { DayCountStepper } from "./DayCountStepper";
 
-type DaysMode = "full_week" | "weekdays_only" | "mon_to_sat";
 type SatBreakfastMode = "sit_down" | "skip";
 type OccasionMode = "sit_down" | "bbq" | "skip";
 type Effort = "quick" | "mixed" | "more_cooking";
@@ -19,12 +20,6 @@ const MEAL_TIMES: { key: MealTime; label: string }[] = [
   { key: "breakfast", label: "Breakfast" },
   { key: "lunch", label: "Lunch" },
   { key: "dinner", label: "Dinner" },
-];
-
-const DAYS_OPTIONS: { value: DaysMode; label: string }[] = [
-  { value: "full_week", label: "Full week" },
-  { value: "weekdays_only", label: "Weekdays" },
-  { value: "mon_to_sat", label: "Mon-Sat" },
 ];
 
 // Saturday breakfast has no "bbq" option (a BBQ breakfast doesn't make
@@ -119,8 +114,14 @@ export function IntakeForm({
   proteinTypes: string[];
 }) {
   const router = useRouter();
+  // Calendar-based days selection (see DECISIONS.md's "Calendar-based days
+  // selection" entry) - weekStartDate is now the day the household's order
+  // arrives (not necessarily a Monday), deliveryTime is an optional
+  // display-only reminder, and numDays is however long that shop needs to
+  // cover, replacing the old 3-preset daysMode tab strip.
   const [weekStartDate, setWeekStartDate] = useState(defaultWeekStartDate);
-  const [daysMode, setDaysMode] = useState<DaysMode>("full_week");
+  const [deliveryTime, setDeliveryTime] = useState("");
+  const [numDays, setNumDays] = useState(7);
   // The three family meal occasions (MVP 1.2, see DECISIONS.md) - replaces
   // MVP1's single Sunday-mode picker.
   const [satBreakfast, setSatBreakfast] = useState<SatBreakfastMode>(defaultSatBreakfastMode);
@@ -130,7 +131,7 @@ export function IntakeForm({
   // lets adults optionally get a breakfast, and lets the kids track be
   // skipped entirely (toggle all three off). Defaults match pre-MVP2.1
   // behaviour exactly - not Settings-backed, just a sensible starting point,
-  // same as daysMode/effort below.
+  // same as numDays/effort below.
   const [parentMeals, setParentMeals] = useState<MealTimesNeeded>({
     breakfast: false,
     lunch: true,
@@ -188,7 +189,8 @@ export function IntakeForm({
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         weekStartDate,
-        daysMode,
+        numDays,
+        deliveryTime,
         familyMeals: { satBreakfast, satEvening, sunLunch },
         parentMeals,
         kidsMeals,
@@ -217,20 +219,22 @@ export function IntakeForm({
   return (
     <form onSubmit={onSubmit} className="mt-6">
       <div className="card p-4">
-        <label className="label" htmlFor="weekStartDate">
-          Week starting (Monday)
+        <span className="label">When does your order arrive?</span>
+        <CalendarDatePicker value={weekStartDate} onChange={setWeekStartDate} />
+
+        <label className="label mt-4" htmlFor="deliveryTime">
+          Delivery time (optional)
         </label>
         <input
-          id="weekStartDate"
-          type="date"
+          id="deliveryTime"
+          type="time"
           className="input"
-          value={weekStartDate}
-          onChange={(e) => setWeekStartDate(e.target.value)}
-          required
+          value={deliveryTime}
+          onChange={(e) => setDeliveryTime(e.target.value)}
         />
 
-        <span className="label mt-4">How many days do you need?</span>
-        <TabStrip name="Days needed" options={DAYS_OPTIONS} value={daysMode} onChange={setDaysMode} />
+        <span className="label mt-4">How many days should it cover?</span>
+        <DayCountStepper value={numDays} onChange={setNumDays} />
       </div>
 
       <CollapsibleTrackSection

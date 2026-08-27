@@ -1607,3 +1607,75 @@ two-tap inline-confirm pattern as `DeleteWeekButton`, not a native `confirm()` d
   than asserting an ingredient disappears entirely - the mock plan's non-batch adult dinners repeat the
   same ingredients as each other and as the batch-cook meal, so nothing in this particular test data
   is actually unique to one meal instance.
+
+## Calendar-based days selection
+
+Operator: *"for selecting the days really we should have a calendar view, the user should be able to
+say what day and time the order is coming and then the number of days the order will cover - make sense?"*
+Confirmed the idea, then resolved two open questions with the operator (`AskUserQuestion`) before
+building:
+
+1. **Delivery time is display-only** - it's shown as a reminder ("Order arrives 18:30" on the plan
+   page header) but never changes which meal slots get planned. The alternative (an evening delivery
+   meaning day-1 dinner can't use it) was rejected as real logic for a narrow case - what would cover
+   day-1 dinner instead isn't obvious, and isn't worth guessing at without it actually being asked for.
+2. **Day count is a free 1-14 number**, not a new set of presets - a stepper (`DayCountStepper.tsx`)
+   replacing the old 3-option tab strip. 14 is a generous cap; beyond that a single shop realistically
+   isn't still covering fresh ingredients.
+
+**What changed under the hood**: `weekIntakeSchema`'s `daysMode` (`"full_week"` / `"weekdays_only"` /
+`"mon_to_sat"`) is replaced by a plain `numDays: number` (1-14), plus a new optional `deliveryTime:
+string`. `weekStartDate` is unchanged as a field, but its *meaning* shifts - it's no longer assumed to
+be a Monday, it's whatever day the shop actually lands on. `daysForIntake()` (`src/lib/intake.ts`) just
+expands `numDays` consecutive days from that date now, instead of picking a fixed 5/6/7-day span.
+
+- **The family-occasion (Saturday breakfast/evening, Sunday lunch) and kids-track (Mon-Sat) logic
+  needed no change at all** to support an arbitrary start day or a >7-day span, including one that
+  spans two Saturdays/Sundays - both `mock.ts` and the system prompt already key family occasions off
+  `dayOfWeek` per day in a loop, not off position within a fixed week, and the system prompt's existing
+  "only apply an occasion if that day is actually within the days needed" guard already generalizes to
+  "zero, one, or two" Saturdays without further work. Verified this holds for real (not just by
+  inspection) with a manual run: a 10-day span starting Saturday 1 Aug correctly gave both Saturdays a
+  family occasion (so no separate adult-track meal that day) while both Sundays still got an ordinary
+  adult dinner (family only covers Sunday *lunch*, not dinner) - see the "Manually verified" note below.
+  The system prompt's wording was still updated (`buildUserPrompt`'s parenthetical) to describe this
+  case explicitly for Claude, since the old wording's example ("if only weekdays are needed") no longer
+  makes sense without the removed presets.
+- **New `CalendarDatePicker.tsx`** - a month-grid date picker built from scratch rather than the native
+  `<input type="date">`, since the operator specifically asked for "a calendar view" and the native
+  picker's chrome is rendered by the OS/browser, not this app, so it can't be made to match the design
+  tokens the rest of the app now uses. Deliberately does **not** restrict past dates by default (no
+  `minDate` passed from the intake form) - the old plain date input never restricted this either (e.g.
+  logging a week retroactively worked fine), and this change wasn't asked to narrow that.
+- **A real timezone bug caught before it shipped, not after**: the obvious implementation
+  (`date.toISOString().slice(0, 10)`) converts to UTC first, which silently shifts a locally-constructed
+  midnight `Date` back a day for any viewer west of GMT - tapping "5 March" would store "4 March". This
+  app already has that exact latent pattern elsewhere (`todayISO()`, `daysForIntake`), but those are
+  low-stakes (a default suggestion the user can freely override, or a same-timezone server-side
+  calculation) - a calendar grid where every single tap runs through the formatter is a much larger
+  surface for it to actually bite a real user. Wrote a local-safe formatter
+  (`CalendarDatePicker.tsx`'s `toISO`) instead of reusing the existing pattern here, rather than
+  "fixing" the rest of the app's date handling, which wasn't asked for and isn't obviously broken in its
+  current low-stakes uses.
+- **New `DayCountStepper.tsx`** - a −/+ stepper (not a bare `<input type="number">`) so both buttons
+  hit the 44px tap-target minimum this app's mobile-UX pass established (see the MVP 1.3 pressure-test
+  entry), same reasoning as `TabStrip`'s `min-h-11` segments.
+- **`upcomingMonday()` removed, replaced by `todayISO()`** - defaulting the calendar to "the coming
+  Monday" no longer makes sense once the date represents an arbitrary delivery day, not a fixed week
+  start. Defaults to today; the household taps forward on the calendar if the real delivery date is
+  later.
+- **Historical weeks read their stored `daysMode` as before, unchanged** - `intakeJson` is stored
+  verbatim and never rewritten by later migrations (the standing rule already established for
+  `energyDirection`/`focuses`), so a week generated before this change genuinely has `daysMode` (not
+  `numDays`) in its JSON at runtime despite `WeekIntake`'s type no longer declaring that field. The
+  History page's `daysLabel()` explicitly guards for both shapes rather than assuming the new one - see
+  the comment above `LEGACY_DAYS_MODE_LABEL` in `src/app/history/page.tsx`.
+- **Manually verified** (mocked generation, real PGlite DB, real browser via Playwright, since the e2e
+  smoke test only exercises the intake form's *defaults* and wouldn't catch a regression in the new
+  calendar/stepper UI itself): signed up, opened the calendar (rendered the correct month with today
+  highlighted), navigated a month forward and back, incremented the day stepper from 7 to 10, set a
+  delivery time, picked Saturday 1 Aug 2026 on the grid, and submitted. The generated plan's header
+  correctly read "Week of 2026-08-01 · Order arrives 18:30", and the Parents tab correctly showed 8
+  adult-dinner rows (10 days minus the two Saturdays, both absorbed into the family occasion) with both
+  Sundays still present (family only covers Sunday lunch, not dinner) - confirming the >7-day,
+  multiple-weekend case actually works end to end, not just by code inspection.
